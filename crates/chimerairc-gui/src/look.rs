@@ -269,6 +269,10 @@ fn style_one(h: HWND) {
             }
             "ChimeraIRC.Child" => {
                 let _ = windows::Win32::UI::Shell::SetWindowSubclass(h, Some(child_proc), 81, 0);
+                // no visual style for the frame: the style gives the title bar rounded top corners (a window region)
+                // that would cut the corners of the flat title bar drawn here
+                let _ = SetWindowTheme(h, w!(""), w!(""));
+                let _ = windows::Win32::Graphics::Gdi::SetWindowRgn(h, None, true);
                 SetClassLongPtrW(h, GCLP_HBRBACKGROUND, panel_brush().0 as isize);
                 let _ = windows::Win32::UI::WindowsAndMessaging::SetWindowPos(
                     h, None, 0, 0, 0, 0,
