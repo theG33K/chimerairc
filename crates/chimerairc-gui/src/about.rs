@@ -111,7 +111,7 @@ pub fn show(owner: HWND) {
             RegisterClassW(&wc);
         });
 
-        let (client_w, client_h) = (px(470), px(270));
+        let (client_w, client_h) = (px(470), px(296));
         let style = WS_POPUP | WS_CAPTION | WS_SYSMENU;
         let ex = WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT;
         let mut rc = RECT { left: 0, top: 0, right: client_w, bottom: client_h };
@@ -143,8 +143,9 @@ pub fn show(owner: HWND) {
         mk(w!("STATIC"), &format!("Version {VERSION}"), WINDOW_STYLE(0), left, px(80), col, px(20), 0, font);
         mk(w!("STATIC"), DESCRIPTION, WINDOW_STYLE(0), left, px(110), col, px(40), 0, font);
         mk(w!("STATIC"), LICENCE, WINDOW_STYLE(0), left, px(154), col, px(40), 0, font);
-        let link_text = format!("<a href=\"{HOME}\">{}</a>", HOME.trim_start_matches("https://"));
+        let link_text = format!("<a href=\"{HOME}\">{HOME}</a>");
         mk(WC_LINK, &link_text, WS_TABSTOP, left, px(200), col, px(22), ID_LINK, font);
+        // (the line above the buttons is 52 pixels from the bottom: the link ends well above it)
         let by = client_h - px(40);
         mk(w!("BUTTON"), "Copy version", WS_TABSTOP, client_w - px(20) - px(90) - px(8) - px(110), by, px(110), px(28), ID_COPY, font);
         let ok = mk(w!("BUTTON"), "OK", WS_TABSTOP | WINDOW_STYLE(BS_DEFPUSHBUTTON as u32), client_w - px(20) - px(90), by, px(90), px(28), 1, font);
