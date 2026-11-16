@@ -271,6 +271,14 @@ fn style_one(h: HWND) {
                 let _ = windows::Win32::UI::Shell::SetWindowSubclass(h, Some(child_proc), 81, 0);
                 // no visual style for the frame: the style gives the title bar rounded top corners (a window region)
                 // that would cut the corners of the flat title bar drawn here
+                // a window created and activated before this ran never told us it was active: ask now
+                {
+                    use windows::Win32::UI::WindowsAndMessaging::*;
+                    let mdi = GetParent(h).unwrap_or_default();
+                    let active_child = HWND(SendMessageW(mdi, 0x0229 /* WM_MDIGETACTIVE */, WPARAM(0), LPARAM(0)).0 as *mut c_void) == h;
+                    let on = active_child && crate::ui::app_is_foreground();
+                    let _ = SetPropW(h, w!("chimera.active"), windows::Win32::Foundation::HANDLE(on as usize as *mut c_void));
+                }
                 let _ = SetWindowTheme(h, w!(""), w!(""));
                 let _ = windows::Win32::Graphics::Gdi::SetWindowRgn(h, None, true);
                 SetClassLongPtrW(h, GCLP_HBRBACKGROUND, panel_brush().0 as isize);
