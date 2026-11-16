@@ -1,37 +1,158 @@
-# ChimeraIRC
+<p align="center">
+  <img src="docs/logo.png" alt="ChimeraIRC" width="220">
+</p>
 
-A Windows IRC client written in Rust, based on HydraIRC (GPLv3, unmaintained since ~2014).
-Goal: keep HydraIRC's look and workflow (MDI windows, docked panes, classic menus/toolbar),
-rebuilt on a modern, memory-safe, standards-current foundation.
+<h1 align="center">ChimeraIRC</h1>
 
-> **Renamed.** This project was called winIRC until it became ChimeraIRC. On first start ChimeraIRC takes over
-> the settings from `%APPDATA%\winIRC\settings.ini` (buddies, layouts, servers, ignores and so on) and saves them as
-> `%APPDATA%\ChimeraIRC\settings.ini`; the old file is left where it is. Logs are now written under
-> `%APPDATA%\ChimeraIRC\logs` unless a folder is chosen in Preferences, so earlier ones stay in the old folder.
-> The environment variables for testing changed prefix too (`WINIRC_*` became `CHIMERAIRC_*`).
+<p align="center">
+  <strong>A Windows IRC client written in Rust, in the spirit of HydraIRC.</strong><br>
+  Classic docked-pane look, modern IRCv3 underneath.
+</p>
 
-## Layout
+<p align="center">
+  <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
+  <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4">
+  <img alt="Written in Rust" src="https://img.shields.io/badge/written%20in-Rust-b7410e">
+  <img alt="Status: early" src="https://img.shields.io/badge/status-early%20release-orange">
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-dark.png" alt="ChimeraIRC in the dark theme" width="49%">
+  <img src="docs/screenshot-light.png" alt="ChimeraIRC in the light theme" width="49%">
+</p>
+
+---
+
+## ✨ What it is
+
+ChimeraIRC keeps what made [HydraIRC](https://en.wikipedia.org/wiki/HydraIRC) pleasant — MDI chat windows, panes docked
+around the edges, a classic menu and toolbar — and rebuilds it as a small, native, memory-safe Win32 program with
+current standards: TLS by default, SASL, and the IRCv3 extensions that make IRC feel modern. No runtime, no web view,
+one `.exe` of about 4 MB.
+
+## 🚀 Features
+
+| | |
+|---|---|
+| 🔒 **Secure by default** | TLS everywhere, SASL PLAIN / SCRAM-SHA-256 / EXTERNAL (client certificates), Strict Transport Security. **No password is ever stored**: you are asked each time. |
+| 📡 **IRCv3** | `server-time`, `message-tags`, `echo-message`, `extended-join`, `account-notify`, `away-notify`, `chghost`, `setname`, `batch` (netsplit summaries), `chathistory`, typing indicators, `MONITOR`. |
+| 🪟 **Docked panes** | Servers, Events, Messages, Notices, URLs, Channels, Connections, Users, Buddies and Output panes; drag them to any edge, split, float, and save up to five layouts. |
+| 🎨 **Themes** | Light, Dark or follow Windows, all flat; choose your own chat colors and fonts. |
+| 💬 **Chat comforts** | Tab completion, highlights, clickable links (with a "where does this really go" hint), double-click a `#channel` or nick, find in window, log search, multi-line paste protection. |
+| 📁 **DCC** | Send and receive files and chats: resume, passive, IPv6, turbo, TLS; UPnP / NAT-PMP / PCP port mapping; drag a file onto a chat to send it. |
+| 👥 **People** | Buddy list with groups, ignore list, away marks in the nick list, a global user list. |
+| 🧰 **Make it yours** | Identities per network, auto-perform scripts, your own aliases, favorites with auto-join. |
+| 📦 **Easy to install** | A per-user MSI (no administrator rights) or a portable ZIP. |
+
+## 📥 Install
+
+Download `ChimeraIRC-<version>-x64.msi` (or the portable `.zip`) from the
+[Releases page](https://github.com/theG33K/chimerairc/releases) and run it. The installer puts the program in
+`%LocalAppData%\Programs\ChimeraIRC` and adds a Start menu shortcut.
+
+> The files are not code-signed yet, so Windows SmartScreen may say "unknown publisher": choose **More info → Run anyway**.
+
+Or build it yourself (see [Build from source](#-build-from-source)).
+
+## ⚡ Quick start
+
+1. Start ChimeraIRC and choose **File → Connect** (<kbd>Ctrl</kbd>+<kbd>S</kbd>), or double-click a network in the **Servers** pane.
+2. Or type in the entry box:
+   ```
+   /server irc.libera.chat
+   /join #rust
+   ```
+   `/server` uses TLS on port 6697 by default; `/server -plain host 6667` connects without TLS.
+3. Type `/help` for the list of commands.
+
+## ⌨️ Commands
+
+Everything starts with `/`; anything else you type is said in the current window. Type `/help` in the program for the
+full list, and press <kbd>Tab</kbd> to complete commands, `#channels` and nicks.
+
+| Command | What it does |
+|---|---|
+| `/server [-plain] <host> [port] [nick]` | Connect to a server (TLS unless `-plain`). |
+| `/join #chan[,#chan2] [key]`, `/part [#chan] [reason]` | Join or leave channels. |
+| `/query <nick> [text]`, `/msg <target> <text>`, `/notice <target> <text>` | Private chats and messages. |
+| `/me <action>`, `/say <text>` | Do an action; say a line that starts with a slash. |
+| `/nick <newnick>`, `/away [reason]`, `/back`, `/setname <real name>` | Your own identity and status. |
+| `/topic [text]`, `/mode [target] <modes>`, `/whois <nick>`, `/list [words]` | Channel and user information. |
+| `/ns <command>`, `/cs <command>` | Talk to NickServ / ChanServ (their answers come to the server window; logins are masked). |
+| `/ignore [mask]`, `/unignore <mask>` | Hide people (no argument lists the rules). |
+| `/buddy add\|remove\|list`, `/monitor + <nick>` | Watch when people come and go. |
+| `/history [n]`, `/history before\|after\|around\|between …` | Fetch chat history from servers that have it. |
+| `/dcc send <nick> [file]`, `/dcc chat <nick>` | File transfers and direct chats. |
+| `/find <text>`, `/logsearch <text>` | Search the window; search your saved logs. |
+| `/alias [name text]`, `/uptime`, `/identity`, `/perform` | Your own commands, uptime, identities, connect scripts. |
+| `/quit [reason]`, `/clear`, `/close`, `/raw <line>` | Leave, tidy up, or send a raw IRC line. |
+
+Handy keys: <kbd>Ctrl</kbd>+<kbd>S</kbd> connect · <kbd>Ctrl</kbd>+<kbd>J</kbd> join · <kbd>Ctrl</kbd>+<kbd>L</kbd> channel list ·
+<kbd>Ctrl</kbd>+<kbd>F</kbd> find (<kbd>F3</kbd> next) · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> search logs ·
+<kbd>Ctrl</kbd>+<kbd>P</kbd> preferences · <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>5</kbd> dock layouts ·
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd> close window.
+
+## ⚙️ Settings
+
+Almost everything is set from the **Options** menu; the program saves it for you in a plain text file:
+
+```
+%AppData%\ChimeraIRC\settings.ini
+```
+
+| Where | What you can set |
+|---|---|
+| **Options → Preferences** (<kbd>Ctrl</kbd>+<kbd>P</kbd>) | Nick, user name, real name, quit message, timestamps, logging and the log folder, history lines on join, DCC address, ports and limits, client certificate. |
+| **Options → Theme** | Light, Dark, or Follow Windows. **Chat Colors…**, **Chat Font…** and **Interface Font…** change the look. |
+| **Options → Identities…** | A nickname, alternates, user name, real name and SASL account per network (the SASL password is asked at connect time). |
+| **Options → Auto-Perform…** | Commands that run when a network connects, e.g. `/msg NickServ identify {ask:Password}` — `{ask:…}` prompts you and never saves it. |
+| **Options → Aliases…** | Your own commands: `slap = /me slaps $1 around with a large trout`. |
+| **Options → Highlights…**, **Ignore List…** | Words that light up a window, and people to hide. |
+| **Options → Show Typing Indicators / Send Typing Notices** | See who is typing; choose whether to tell others you are. |
+| **Favorites** | Servers and channels to join automatically. |
+| **View → Layouts** | Save and recall up to five arrangements of the docked panes. |
+
+Your logs go to `%AppData%\ChimeraIRC\logs` unless you pick another folder. If you used the older **winIRC**, ChimeraIRC
+picks up `%AppData%\winIRC\settings.ini` the first time it starts.
+
+## 🛡️ Privacy and safety
+
+- Passwords (server, SASL, NickServ, oper) are **never** written to the settings file or the logs.
+- Logins you type to services are masked on screen (`identify ******`).
+- Pasting several lines asks first, sends them slowly, and never runs a pasted `/command`.
+- Pointing at a link shows where it really goes; nothing is fetched to make a preview.
+
+## 🔨 Build from source
+
+You need Windows and [Rust](https://rustup.rs/). The repository pins the GNU toolchain in `rust-toolchain.toml`.
+
+```powershell
+cargo test --workspace      # run the tests
+cargo run -p chimerairc     # start the program
+```
+
+To make the installer and the portable ZIP (into `dist\`), see [`packaging/README.md`](packaging/README.md):
+
+```powershell
+.\packaging\build-installer.ps1
+```
+
+## 🗂️ Project layout
 
 | Path | Purpose |
 |---|---|
-| `crates/chimerairc-proto` | Wire protocol: message parse/encode, IRCv3 tags, CTCP. No I/O, no deps. |
-| `crates/chimerairc-core` | Client engine: sans-IO `Session` (CAP 302, SASL PLAIN, ISUPPORT, channel/member/mode tracking, CTCP, ignore filtering), a tokio + rustls transport (`net::spawn`), the DCC transports (files, chat, resume, passive, IPv6, turbo, TLS) and router port forwarding (PCP, NAT-PMP, UPnP). |
-| `crates/chimerairc-gui` | Native Win32 front end (`chimerairc.exe`): MDI frame, tab bar, toolbar, status bar, server/channel/query/DCC-chat windows with topic bar and user list, `/commands`, highlights, logging, channel list, favorites, ignore list, HydraIRC import, DCC transfers window. |
-| `packaging/` | Builds the MSI installer and the portable ZIP (see `packaging/README.md`). |
-| `docs/ROADMAP.md` | Feature map from HydraIRC to ChimeraIRC, and the standards plan. |
+| `crates/chimerairc-proto` | IRC wire protocol: message parse/encode, IRCv3 tags, CTCP. No I/O. |
+| `crates/chimerairc-core` | Client engine: sans-IO `Session` (CAP, SASL, ISUPPORT, channel state), the TLS transport, DCC, port mapping. |
+| `crates/chimerairc-gui` | The native Win32 program (`chimerairc.exe`). |
+| `packaging/` | Installer (WiX), portable ZIP and icon scripts. |
+| `docs/ROADMAP.md` | What is done, what is next, and the standards plan. |
 
-## Build
+## 🧭 Roadmap
 
-```
-cargo test --workspace
-cargo run -p chimerairc
-```
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full feature map from HydraIRC and the plan for what comes next
+(code signing, update checks, more IRCv3, scripting).
 
-In the app, use **File > Connect** (Ctrl+S), **Join Channel** (Ctrl+J) and **Options > Preferences** (Ctrl+P), or type `/help`. Connect with `/server irc.libera.chat` (TLS, port 6697), then `/join #channel`.
-Use `/server -plain host 6667` for a non-TLS server.
+## 📜 License
 
-`rust-toolchain.toml` pins the GNU toolchain because MSVC build tools aren't installed on the dev machine.
-
-## License
-
-GPL-3.0-or-later, inherited from HydraIRC (see `LICENSE`). Original copyright remains with the HydraIRC authors.
+GPL-3.0-or-later, inherited from HydraIRC (see [`LICENSE`](LICENSE)). The original copyright remains with the
+HydraIRC authors.
