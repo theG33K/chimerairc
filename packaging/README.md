@@ -36,3 +36,7 @@ $env:CHIMERA_SIGN_PASSWORD = Read-Host "PFX password"   # only in this session; 
 The signature is timestamped (`-TimestampUrl`, DigiCert by default; pass `""` for none), so it stays valid after the
 certificate expires. A self-signed certificate signs fine but Windows will not trust it, which is only good for
 testing. The signing step was tested with a throw-away self-signed certificate; no real certificate was used.
+
+## The icon
+
+`packaging\chimerairc-logo.webp` is the artwork. `packaging\make-icon.ps1 -Source packaging\chimerairc-logo.webp -OutIco crates\chimerairc-gui\assets\chimerairc.ico` makes the multi-size icon from it (16 to 256 pixels, the dark area outside the rounded square made transparent). Windows PowerShell with the Windows WebP codec is enough; nothing is installed.
