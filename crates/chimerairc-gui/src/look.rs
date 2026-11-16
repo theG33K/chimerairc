@@ -335,11 +335,147 @@ unsafe extern "system" fn tab_proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _i
     windows::Win32::UI::Shell::DefSubclassProc(h, msg, wp, lp)
 }
 
+/// What `WM_GETTITLEBARINFOEX` fills in: where the title bar and its buttons are (screen coordinates).
+#[repr(C)]
+struct TitleBarInfoEx {
+    size: u32,
+    bar: windows::Win32::Foundation::RECT,
+    state: [u32; 6],
+    rects: [windows::Win32::Foundation::RECT; 6],
+}
+
+/// Draw the title bar and the frame of a chat window that is not maximized: flat, in the theme's colours, with
+/// the icon, the title and the three buttons. The system still decides what a click on them does.
+unsafe fn paint_caption_frame(h: HWND) {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    let t = theme();
+    let mut win = RECT::default();
+    let mut cl = RECT::default();
+    let mut origin = POINT { x: 0, y: 0 };
+    if GetWindowRect(h, &mut win).is_err() || GetClientRect(h, &mut cl).is_err() || !ClientToScreen(h, &mut origin).as_bool() {
+        return;
+    }
+    let (w, ht) = (win.right - win.left, win.bottom - win.top);
+    if w < 8 || ht < 8 {
+        return;
+    }
+    let dc = GetWindowDC(h);
+    if dc.is_invalid() {
+        return;
+    }
+    let (l, tp) = (origin.x - win.left, origin.y - win.top);
+    // the frame: the panel colour with a thin line outside
+    if !IsIconic(h).as_bool() {
+        ExcludeClipRect(dc, l, tp, l + cl.right, tp + cl.bottom);
+    }
+    let whole = RECT { left: 0, top: 0, right: w, bottom: ht };
+    FillRect(dc, &whole, panel_brush());
+    let line = CreateSolidBrush(colorref(t.border));
+    FrameRect(dc, &whole, line);
+    let _ = DeleteObject(HGDIOBJ(line.0));
+
+    // the title bar
+    let mut info = TitleBarInfoEx { size: std::mem::size_of::<TitleBarInfoEx>() as u32, bar: RECT::default(), state: [0; 6], rects: [RECT::default(); 6] };
+    SendMessageW(h, 0x033F /* WM_GETTITLEBARINFOEX */, WPARAM(0), LPARAM(&mut info as *mut TitleBarInfoEx as isize));
+    let mut bar = info.bar;
+    if bar.right <= bar.left || bar.bottom <= bar.top {
+        ReleaseDC(h, dc);
+        return;
+    }
+    let _ = OffsetRect(&mut bar, -win.left, -win.top);
+    // the system's title bar rectangle leaves out the window-menu icon at the left: the caption spans the whole width
+    bar.left = 1;
+    bar.right = w - 1;
+    let active = !GetPropW(h, w!("chimera.active")).is_invalid();
+    let (bg, fg) = if active { (t.accent, t.accent_text) } else { (t.panel, t.timestamp) };
+    let brush = CreateSolidBrush(colorref(bg));
+    FillRect(dc, &bar, brush);
+    let _ = DeleteObject(HGDIOBJ(brush.0));
+    let rule = CreateSolidBrush(colorref(t.border));
+    FillRect(dc, &RECT { left: bar.left, top: bar.bottom - 1, right: bar.right, bottom: bar.bottom }, rule);
+    let _ = DeleteObject(HGDIOBJ(rule.0));
+
+    let bh = bar.bottom - bar.top;
+    // the buttons: Marlett is the font the system draws its caption buttons with (0 minimize, 1 maximize,
+    // 2 restore, r close)
+    let face = crate::util::wide("Marlett");
+    let marlett = CreateFontW(-(bh * 5 / 10).max(8), 0, 0, 0, 400, 0, 0, 0, 2, 0, 0, 0, 0, PCWSTR(face.as_ptr()));
+    let old = SelectObject(dc, HGDIOBJ(marlett.0));
+    SetBkMode(dc, TRANSPARENT);
+    let iconic = IsIconic(h).as_bool();
+    let mut first_button = bar.right;
+    for (slot, glyph) in [(2usize, if iconic { '2' } else { '0' }), (3, '1'), (5, 'r')] {
+        let state = info.state[slot];
+        if state & 0x8000 != 0 {
+            continue; // invisible
+        }
+        let mut r = info.rects[slot];
+        let _ = OffsetRect(&mut r, -win.left, -win.top);
+        if r.right <= r.left {
+            continue;
+        }
+        first_button = first_button.min(r.left);
+        SetTextColor(dc, colorref(if state & 1 != 0 { t.timestamp } else { fg }));
+        let mut g = [glyph as u16];
+        DrawTextW(dc, &mut g, &mut r, DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+    }
+    SelectObject(dc, old);
+    let _ = DeleteObject(HGDIOBJ(marlett.0));
+
+    // the small icon, then the title
+    let mut x = bar.left + crate::util::px(6);
+    let mut icon = HICON(SendMessageW(h, WM_GETICON, WPARAM(ICON_SMALL as usize), LPARAM(0)).0 as *mut c_void);
+    if icon.0.is_null() {
+        icon = HICON(GetClassLongPtrW(h, GCLP_HICONSM) as *mut c_void);
+    }
+    let side = crate::util::px(16);
+    if !icon.0.is_null() {
+        let _ = DrawIconEx(dc, x, bar.top + (bh - side) / 2, icon, side, side, 0, None, DI_NORMAL);
+        x += side + crate::util::px(6);
+    }
+    let mut buf = [0u16; 200];
+    let n = GetWindowTextW(h, &mut buf).max(0) as usize;
+    let font = HGDIOBJ(crate::ui::ui_font_raw() as *mut c_void);
+    let old = SelectObject(dc, font);
+    SetTextColor(dc, colorref(fg));
+    let mut tr = RECT { left: x, top: bar.top, right: first_button - crate::util::px(4), bottom: bar.bottom };
+    if n > 0 && tr.right > tr.left {
+        DrawTextW(dc, &mut buf[..n], &mut tr, DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+    }
+    SelectObject(dc, old);
+    ReleaseDC(h, dc);
+}
+
 /// A maximized chat window: its frame turns white when the window is activated; repaint it flat after every frame paint.
 unsafe extern "system" fn child_proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM, _id: usize, _data: usize) -> windows::Win32::Foundation::LRESULT {
     use windows::Win32::Foundation::{POINT, RECT};
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::UI::WindowsAndMessaging::*;
+    // A chat window that is not maximized has its own title bar and frame: they are drawn here in the theme's
+    // colours instead of the system's blue (or grey) caption.
+    if !IsZoomed(h).as_bool() {
+        match msg {
+            WM_NCPAINT => {
+                paint_caption_frame(h);
+                return windows::Win32::Foundation::LRESULT(0);
+            }
+            WM_NCACTIVATE => {
+                let _ = SetPropW(h, w!("chimera.active"), windows::Win32::Foundation::HANDLE(wp.0 as *mut c_void));
+                // lParam -1: the system does the activation but does not repaint the frame itself
+                let r = windows::Win32::UI::Shell::DefSubclassProc(h, msg, wp, LPARAM(-1));
+                paint_caption_frame(h);
+                return r;
+            }
+            WM_SETTEXT | WM_SETICON => {
+                let r = windows::Win32::UI::Shell::DefSubclassProc(h, msg, wp, lp);
+                paint_caption_frame(h);
+                return r;
+            }
+            _ => {}
+        }
+    }
     let r = windows::Win32::UI::Shell::DefSubclassProc(h, msg, wp, lp);
     let t = theme();
     if (msg == WM_NCPAINT || msg == WM_NCACTIVATE) && IsZoomed(h).as_bool() {
