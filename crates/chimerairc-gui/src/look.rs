@@ -394,8 +394,9 @@ unsafe fn paint_caption_frame(h: HWND) {
     bar.right = w - 1;
     let active = !GetPropW(h, w!("chimera.active")).is_invalid();
     let (bg, fg) = if active { (t.accent, t.accent_text) } else { (t.panel, t.timestamp) };
+    // the colour runs up to the outer line (the system's rectangle starts below the sizing frame)
     let brush = CreateSolidBrush(colorref(bg));
-    FillRect(dc, &bar, brush);
+    FillRect(dc, &RECT { left: 1, top: 1, right: w - 1, bottom: bar.bottom }, brush);
     let _ = DeleteObject(HGDIOBJ(brush.0));
     let rule = CreateSolidBrush(colorref(t.border));
     FillRect(dc, &RECT { left: bar.left, top: bar.bottom - 1, right: bar.right, bottom: bar.bottom }, rule);
