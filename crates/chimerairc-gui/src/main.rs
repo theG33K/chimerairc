@@ -35,6 +35,7 @@ mod layouts;
 mod servers;
 mod buddies;
 mod capsfmt;
+mod about;
 mod alias;
 mod identity;
 mod linkinfo;

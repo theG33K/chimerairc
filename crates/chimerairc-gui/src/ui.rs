@@ -1247,14 +1247,7 @@ unsafe fn on_command(hwnd: HWND, id: usize) -> bool {
         ID_WIN_ARRANGE => {
             send(mdi(), WM_MDIICONARRANGE, 0, 0);
         }
-        ID_HELP_ABOUT => {
-            MessageBoxW(
-                hwnd,
-                w!("ChimeraIRC 0.1.0\n\nA Rust rewrite of HydraIRC.\nLicensed GPL-3.0-or-later."),
-                w!("About ChimeraIRC"),
-                MB_OK | MB_ICONINFORMATION,
-            );
-        }
+        ID_HELP_ABOUT => crate::about::show(hwnd),
         _ => return false,
     }
     true
