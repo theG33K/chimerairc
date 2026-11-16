@@ -1,0 +1,21 @@
+[package]
+name = "chimerairc-core"
+description = "ChimeraIRC client engine: connection, CAP/SASL negotiation, channel/user state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chimerairc-proto = { path = "../chimerairc-proto" }
+tokio = { version = "1", features = ["rt", "net", "io-util", "macros", "sync", "time", "fs"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
+base64 = "0.22"
+ring = "0.17"
+roxmltree = "0.21.2"
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }

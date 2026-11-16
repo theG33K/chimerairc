@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ChimeraIRC installer (WiX Toolset 5). Built by packaging\build-installer.ps1, which passes
+  -d Version=... -d ExePath=... -d LicenseRtf=... -d Icon=...
+
+  A per-user install: no administrator rights, files in %LocalAppData%\Programs\ChimeraIRC, a Start menu
+  shortcut, and an entry in Settings > Apps. Settings live in %AppData%\ChimeraIRC and are left alone when
+  the program is removed or upgraded.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="ChimeraIRC" Manufacturer="ChimeraIRC contributors" Version="$(Version)"
+           UpgradeCode="6B1D3C0E-5E7A-4C57-9F1E-2C8E4A7D9B35" Scope="perUser" Compressed="yes">
+
+    <SummaryInformation Description="ChimeraIRC - an IRC client for Windows" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ChimeraIRC is already installed." />
+
+    <Icon Id="AppIcon.ico" SourceFile="$(Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(LicenseRtf)" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="ChimeraIRC" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="ChimeraIRC" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExe" Guid="*">
+        <File Id="ChimeraIRCExe" Source="$(ExePath)" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\ChimeraIRC" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+      </Component>
+      <Component Id="LicenseFile" Guid="*">
+        <File Id="LicenseTxt" Source="$(LicenseTxt)" Name="LICENSE.txt" KeyPath="yes" />
+      </Component>
+      <Component Id="ReadmeFile" Guid="*">
+        <File Id="ReadmeTxt" Source="$(ReadmeTxt)" Name="README.txt" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="*">
+      <Shortcut Id="AppShortcut" Name="ChimeraIRC" Description="ChimeraIRC - an IRC client for Windows"
+                Target="[INSTALLFOLDER]chimerairc.exe" WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU" Key="Software\ChimeraIRC" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+  </Package>
+</Wix>

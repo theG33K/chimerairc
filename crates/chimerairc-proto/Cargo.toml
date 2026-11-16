@@ -1,0 +1,9 @@
+[package]
+name = "chimerairc-proto"
+description = "IRC wire protocol (Modern IRC / IRCv3) parsing and serialization for ChimeraIRC"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]

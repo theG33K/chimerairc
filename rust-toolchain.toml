@@ -1,0 +1,4 @@
+# MSVC build tools aren't installed here; the GNU toolchain (WinLibs gcc) is.
+# Switch to "stable-x86_64-pc-windows-msvc" if you install Build Tools for Visual Studio.
+[toolchain]
+channel = "stable-x86_64-pc-windows-gnu"

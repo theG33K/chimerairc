@@ -1,0 +1,18 @@
+[package]
+name = "chimerairc"
+description = "ChimeraIRC - a Windows IRC client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[dependencies]
+chimerairc-proto = { path = "../chimerairc-proto" }
+chimerairc-core = { path = "../chimerairc-core" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+windows.workspace = true
+roxmltree = "0.21.2"
+
+[build-dependencies]
+embed-resource = "3"
