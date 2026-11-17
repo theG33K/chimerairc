@@ -19,6 +19,9 @@ fn main() {
         r#"1 ICON "{icon}"
 1 24 "{manifest}"
 100 BITMAP "{toolbar}"
+110 BITMAP "{dark16}"
+111 BITMAP "{dark32}"
+112 BITMAP "{dark48}"
 101 BITMAP "{tabs}"
 
 1 VERSIONINFO
@@ -53,6 +56,9 @@ END
         icon = path("chimerairc.ico"),
         manifest = path("chimerairc.manifest"),
         toolbar = path("toolbar.bmp"),
+        dark16 = path("toolbar_dark_16.bmp"),
+        dark32 = path("toolbar_dark_32.bmp"),
+        dark48 = path("toolbar_dark_48.bmp"),
         tabs = path("tabicons.bmp"),
     );
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("chimerairc.rc");

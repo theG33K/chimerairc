@@ -702,6 +702,36 @@ unsafe fn load_icons(res: u16, icons: i32) -> HIMAGELIST {
     himl
 }
 
+/// The toolbar icons drawn for the dark theme (light strokes, bright accents, with an alpha channel), at the size
+/// that fits the screen's scale: 16, 32 or 48 pixels.
+unsafe fn load_dark_icons() -> HIMAGELIST {
+    let factor = ((GetDpiForSystem() as i32 + 48) / 96).max(1);
+    let (res, size) = match factor {
+        1 => (110u16, 16),
+        2 => (111u16, 32),
+        _ => (112u16, 48),
+    };
+    let Ok(src) = LoadImageW(hinst(), PCWSTR(res as usize as *const u16), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION) else {
+        return HIMAGELIST::default();
+    };
+    let src = HBITMAP(src.0);
+    let himl = ImageList_Create(size, size, ILC_COLOR32, 18, 0);
+    ImageList_Add(himl, src, HBITMAP::default());
+    let _ = DeleteObject(src);
+    himl
+}
+
+/// The toolbar icons for the current theme: HydraIRC's own in Light, the dark set in Dark.
+unsafe fn toolbar_icons() -> HIMAGELIST {
+    if crate::look::theme().dark {
+        let himl = load_dark_icons();
+        if !himl.is_invalid() {
+            return himl;
+        }
+    }
+    load_icons(100, 18)
+}
+
 unsafe fn create_toolbar(parent: HWND) {
     let tb = CreateWindowExW(
         WINDOW_EX_STYLE(0), w!("ToolbarWindow32"), PCWSTR::null(),
@@ -712,7 +742,7 @@ unsafe fn create_toolbar(parent: HWND) {
     .unwrap_or_default();
     TOOLBAR.store(tb.0 as isize, Ordering::Relaxed);
     send(tb, TB_BUTTONSTRUCTSIZE, std::mem::size_of::<TBBUTTON>(), 0);
-    let himl = load_icons(100, 18);
+    let himl = toolbar_icons();
     send(tb, TB_SETIMAGELIST, 0, himl.0 as isize);
     let buttons: Vec<TBBUTTON> = TOOLBAR_BUTTONS
         .iter()
@@ -826,6 +856,13 @@ pub fn theme_changed() {
         crate::look::style_title_bar(frame);
         let _ = DrawMenuBar(frame);
         repaint_tabs();
+        // the toolbar icons that suit the theme
+        if !toolbar().0.is_null() {
+            let old = send(toolbar(), TB_SETIMAGELIST, 0, toolbar_icons().0 as isize);
+            if old != 0 {
+                let _ = ImageList_Destroy(HIMAGELIST(old));
+            }
+        }
         for part in 0..3 {
             send_status_part(part);
         }

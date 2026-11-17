@@ -40,3 +40,7 @@ testing. The signing step was tested with a throw-away self-signed certificate; 
 ## The icon
 
 `packaging\chimerairc-logo.webp` is the artwork. `packaging\make-icon.ps1 -Source packaging\chimerairc-logo.webp -OutIco crates\chimerairc-gui\assets\chimerairc.ico` makes the multi-size icon from it (16 to 256 pixels, the dark area outside the rounded square made transparent). Windows PowerShell with the Windows WebP codec is enough; nothing is installed.
+
+## The toolbar icons
+
+The light theme uses HydraIRC's toolbar bitmap (`assets\toolbar.bmp`). The dark theme uses icons drawn for it: `packaging\make-toolbar-icons.ps1` draws them (light strokes, bright accents, anti-aliased with an alpha channel) into `assets\toolbar_dark_16.bmp`, `_32` and `_48` for the screen's scale; they are built into the exe and swapped when the theme changes.
