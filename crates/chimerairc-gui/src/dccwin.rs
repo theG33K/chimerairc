@@ -204,8 +204,10 @@ extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT
                 create_controls(hwnd);
                 layout(hwnd);
                 SetTimer(hwnd, TIMER, 500, None);
+                crate::look::style_popup(hwnd);
                 LRESULT(0)
             }
+            WM_CTLCOLORSTATIC | WM_CTLCOLORBTN | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX => crate::look::dialog_colors(msg, wp),
             WM_SIZE => {
                 layout(hwnd);
                 LRESULT(0)

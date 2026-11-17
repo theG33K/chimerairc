@@ -156,6 +156,7 @@ pub fn apply() {
             return;
         }
         extern "system" fn each(h: HWND, _: LPARAM) -> BOOL {
+            style_title_bar(h);
             style_tree(h);
             true.into()
         }
@@ -186,6 +187,27 @@ fn set_theme(h: HWND, dark_name: PCWSTR, light_name: PCWSTR) {
     unsafe {
         let _ = SetWindowTheme(h, name, PCWSTR::null());
     }
+}
+
+/// Colours for the labels, buttons, text boxes and lists of a dialog or a popup window, in the theme: the
+/// answer to `WM_CTLCOLORSTATIC` and its relatives.
+pub unsafe fn dialog_colors(msg: u32, wp: WPARAM) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::UI::WindowsAndMessaging::{WM_CTLCOLOREDIT, WM_CTLCOLORLISTBOX};
+    let (dc, t) = (HDC(wp.0 as *mut c_void), theme());
+    if msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORLISTBOX {
+        SetBkColor(dc, colorref(t.bg));
+        SetTextColor(dc, colorref(t.fg));
+        return windows::Win32::Foundation::LRESULT(bg_brush().0 as isize);
+    }
+    SetBkColor(dc, colorref(t.panel));
+    SetTextColor(dc, colorref(t.panel_text));
+    windows::Win32::Foundation::LRESULT(panel_brush().0 as isize)
+}
+
+/// A popup window or dialog of the program: dark or light title bar, and its controls styled.
+pub fn style_popup(h: HWND) {
+    style_title_bar(h);
+    style_tree(h);
 }
 
 /// Make the title bar dark or light to match the theme.
@@ -289,10 +311,16 @@ fn style_one(h: HWND) {
                         | windows::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE,
                 );
             }
-            // the program's own windows (but not the forms and the drop marker): panel colour behind the controls
-            c if c.starts_with("ChimeraIRC.") && c != "ChimeraIRC.Form" && c != "ChimeraIRC.DropHint" => {
-                SetClassLongPtrW(h, GCLP_HBRBACKGROUND, panel_brush().0 as isize);
+            "ChimeraIRC.About" => {
+                SetClassLongPtrW(h, GCLP_HBRBACKGROUND, bg_brush().0 as isize);
+                let _ = InvalidateRect(h, None, true);
             }
+            // the program's own windows and dialogs (but not the drop marker): panel colour behind the controls
+            c if c.starts_with("ChimeraIRC.") && c != "ChimeraIRC.DropHint" => {
+                SetClassLongPtrW(h, GCLP_HBRBACKGROUND, panel_brush().0 as isize);
+                let _ = InvalidateRect(h, None, true);
+            }
+            "Button" | "ComboBox" => set_theme(h, w!("DarkMode_Explorer"), PCWSTR::null()),
             _ => {}
         }
     }
@@ -484,6 +512,12 @@ unsafe extern "system" fn child_proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM, 
             // Anything that can make the system draw its own caption (a window shown, activated, moved or restyled,
             // most of all while another window of the program, like the channel list, has the focus) is followed by
             // a repaint here, so the frame never stays in the system's look.
+            // the system's own undocumented "draw the caption / the frame" messages (WM_NCUAHDRAWCAPTION and
+            // WM_NCUAHDRAWFRAME): answered here, so its caption is never drawn
+            0x00AE | 0x00AF => {
+                paint_caption_frame(h);
+                return windows::Win32::Foundation::LRESULT(0);
+            }
             WM_SETTEXT | WM_SETICON | WM_MDIACTIVATE | WM_WINDOWPOSCHANGED | WM_SHOWWINDOW | WM_STYLECHANGED | WM_ACTIVATE
             | WM_ACTIVATEAPP | WM_SETFOCUS | WM_KILLFOCUS | WM_THEMECHANGED => {
                 let r = windows::Win32::UI::Shell::DefSubclassProc(h, msg, wp, lp);
@@ -648,9 +682,6 @@ pub fn style_tree(root: HWND) {
         return;
     }
     let class = class_of(root);
-    if class == "ChimeraIRC.Form" || class == "#32770" {
-        return; // dialogs keep the system look
-    }
     style_one(root);
     if class.starts_with("ChimeraIRC.") {
         style_title_bar(root);

@@ -247,11 +247,8 @@ extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT
                 }
                 LRESULT(0) // the modal loop destroys the window
             }
-            WM_CTLCOLORSTATIC | WM_CTLCOLORBTN => {
-                let dc = HDC(wp.0 as *mut c_void);
-                SetBkColor(dc, windows::Win32::Foundation::COLORREF(GetSysColor(COLOR_BTNFACE)));
-                LRESULT(GetSysColorBrush(COLOR_BTNFACE).0 as isize)
-            }
+            // labels, buttons, text boxes and lists in the colours of the theme
+            WM_CTLCOLORSTATIC | WM_CTLCOLORBTN | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX => crate::look::dialog_colors(msg, wp),
             _ => DefWindowProcW(hwnd, msg, wp, lp),
         }
     }
@@ -336,6 +333,7 @@ pub fn show(owner: HWND, current: &Favorites) -> Option<Favorites> {
         let first = (!state.favs.servers.is_empty()).then_some(Row { server: 0, channel: None });
         refresh(&mut state, first);
         SetWindowLongPtrW(dlg, GWLP_USERDATA, &mut *state as *mut State as isize);
+        crate::look::style_popup(dlg);
         let _ = EnableWindow(owner, false);
         let _ = ShowWindow(dlg, SW_SHOW);
         let _ = SetFocus(list);

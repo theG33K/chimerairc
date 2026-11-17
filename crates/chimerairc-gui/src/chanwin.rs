@@ -317,8 +317,10 @@ extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, st as isize);
                 create_controls(hwnd, &mut *st);
                 layout(hwnd);
+                crate::look::style_popup(hwnd);
                 LRESULT(0)
             }
+            WM_CTLCOLORSTATIC | WM_CTLCOLORBTN | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX => crate::look::dialog_colors(msg, wp),
             WM_SIZE => {
                 layout(hwnd);
                 LRESULT(0)

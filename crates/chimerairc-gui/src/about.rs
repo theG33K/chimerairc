@@ -51,18 +51,23 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> 
             let mut rc = RECT::default();
             let _ = GetClientRect(hwnd, &mut rc);
             let line = RECT { left: 0, top: rc.bottom - px(52), right: rc.right, bottom: rc.bottom - px(52) + 1 };
-            FillRect(dc, &line, GetSysColorBrush(COLOR_3DLIGHT));
+            let t = crate::look::theme();
+            let rule = CreateSolidBrush(crate::look::colorref(t.border));
+            FillRect(dc, &line, rule);
+            let _ = DeleteObject(HGDIOBJ(rule.0));
             let below = RECT { left: 0, top: line.bottom, right: rc.right, bottom: rc.bottom };
-            FillRect(dc, &below, GetSysColorBrush(COLOR_BTNFACE));
+            FillRect(dc, &below, crate::look::panel_brush());
             let _ = EndPaint(hwnd, &ps);
             LRESULT(0)
         }
         WM_CTLCOLORSTATIC => {
-            // labels and the link sit on the white area
-            let dc = HDC(wp.0 as *mut c_void);
+            // labels and the link sit on the main area, in the theme's colours
+            let (dc, t) = (HDC(wp.0 as *mut c_void), crate::look::theme());
             SetBkMode(dc, TRANSPARENT);
-            LRESULT(GetSysColorBrush(COLOR_WINDOW).0 as isize)
+            SetTextColor(dc, crate::look::colorref(t.fg));
+            LRESULT(crate::look::bg_brush().0 as isize)
         }
+        WM_CTLCOLORBTN => crate::look::dialog_colors(msg, wp),
         WM_COMMAND => {
             let id = wp.0 & 0xffff;
             if id == ID_COPY {
@@ -105,7 +110,7 @@ pub fn show(owner: HWND) {
                 lpszClassName: CLASS,
                 hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
                 hIcon: LoadIconW(hi, PCWSTR(1usize as *const u16)).unwrap_or_default(),
-                hbrBackground: GetSysColorBrush(COLOR_WINDOW),
+                hbrBackground: crate::look::bg_brush(),
                 ..Default::default()
             };
             RegisterClassW(&wc);
@@ -151,6 +156,7 @@ pub fn show(owner: HWND) {
         let ok = mk(w!("BUTTON"), "OK", WS_TABSTOP | WINDOW_STYLE(BS_DEFPUSHBUTTON as u32), client_w - px(20) - px(90), by, px(90), px(28), 1, font);
 
         DONE.store(false, Ordering::Relaxed);
+        crate::look::style_popup(dlg);
         let _ = EnableWindow(owner, false);
         let _ = ShowWindow(dlg, SW_SHOW);
         let _ = SetFocus(ok);
