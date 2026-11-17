@@ -22,6 +22,9 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/" />
     <WixVariable Id="WixUILicenseRtf" Value="$(LicenseRtf)" />
+    <!-- the logo on the installer's pages: a banner across the top and a picture on the first and last pages -->
+    <WixVariable Id="WixUIBannerBmp" Value="$(BannerBmp)" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(DialogBmp)" />
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ProgramsFolder" Name="Programs">

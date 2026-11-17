@@ -101,7 +101,8 @@ Remove-Item $msi -ErrorAction SilentlyContinue
   -ext $uiExt.FullName `
   -d "Version=$version" -d "ExePath=$stage\chimerairc.exe" -d "LicenseRtf=$stage\License.rtf" `
   -d "LicenseTxt=$stage\LICENSE.txt" -d "ReadmeTxt=$stage\README.txt" `
-  -d "Icon=$root\crates\chimerairc-gui\assets\chimerairc.ico"
+  -d "Icon=$root\crates\chimerairc-gui\assets\chimerairc.ico" `
+  -d "BannerBmp=$root\packaging\installer-banner.bmp" -d "DialogBmp=$root\packaging\installer-dialog.bmp"
 if ($LASTEXITCODE -ne 0) { throw "wix build failed" }
 Sign-File $msi
 Write-Host "wrote $msi"
