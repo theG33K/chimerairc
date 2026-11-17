@@ -112,8 +112,27 @@ Almost everything is set from the **Options** menu; the program saves it for you
 | **Favorites** | Servers and channels to join automatically. |
 | **View → Layouts** | Save and recall up to five arrangements of the docked panes. |
 
-Your logs go to `%AppData%\ChimeraIRC\logs` unless you pick another folder. If you used the older **winIRC**, ChimeraIRC
-picks up `%AppData%\winIRC\settings.ini` the first time it starts.
+### 🗄️ Where your data is kept
+
+Everything is stored per user, outside the program's install folder, so upgrading or uninstalling ChimeraIRC never
+touches it.
+
+| What | Where |
+|---|---|
+| **All settings** — nick and identity, Preferences, theme, colors and fonts, dock layouts, window positions and sizes, servers and favorites, identities, auto-perform scripts, aliases, highlights, buddies, ignores, typing options, servers that must use TLS | `%AppData%\ChimeraIRC\settings.ini` (usually `C:\Users\<you>\AppData\Roaming\ChimeraIRC\settings.ini`) |
+| **Chat logs** (when logging is on) | `%AppData%\ChimeraIRC\logs\`, or the folder you choose in Preferences: one folder per server, one file per channel or private chat |
+| **Pictures you paste to send over DCC** | `%TEMP%\ChimeraIRC\` (small temporary files) |
+| **Files you receive over DCC** | Wherever you choose when you accept them |
+| **Install location note** (installer only) | `HKCU\Software\ChimeraIRC` in the registry; the program itself does not use it |
+
+Tips:
+
+- **Back up or move your setup:** copy `settings.ini` to the other PC's `%AppData%\ChimeraIRC\` folder.
+- **Edit by hand:** it is plain text, but close ChimeraIRC first — the program rewrites the file whenever a setting
+  changes and would overwrite your edit.
+- **Passwords are never in these files.** Server, SASL, NickServ and oper passwords are asked for each time.
+- **Older winIRC users:** the first time ChimeraIRC starts it copies `%AppData%\winIRC\settings.ini` into the new
+  location and leaves the old file where it is. Logs written by winIRC stay in its own folder.
 
 ## 🛡️ Privacy and safety
 
