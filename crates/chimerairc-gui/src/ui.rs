@@ -24,6 +24,8 @@ use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass, ShellExecute
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub const WM_APP_EVENT: u32 = WM_APP + 1;
+/// Posted by the update check when it has an answer.
+pub const WM_APP_UPDATE: u32 = WM_APP + 2;
 /// Posted to a chat window after the pointer moved over its text: is it still over a link?
 const WM_HOVER_CHECK: u32 = WM_APP + 7;
 
@@ -135,6 +137,8 @@ const ID_WIN_TILEH: usize = 131;
 const ID_WIN_TILEV: usize = 132;
 const ID_WIN_ARRANGE: usize = 133;
 const ID_HELP_ABOUT: usize = 140;
+const ID_HELP_UPDATES: usize = 141;
+const ID_OPT_UPDATE_START: usize = 180;
 
 static FRAME: AtomicIsize = AtomicIsize::new(0);
 static MDI: AtomicIsize = AtomicIsize::new(0);
@@ -618,6 +622,7 @@ unsafe fn build_menu() -> windows::core::Result<HMENU> {
     add(opts, ID_OPT_CHATFONT, w!("Chat F&ont..."));
     add(opts, ID_OPT_UIFONT, w!("&Interface Font..."));
     sep(opts);
+    add(opts, ID_OPT_UPDATE_START, w!("Check for Updates at Sta&rt"));
     add(opts, ID_OPT_TYPING_SHOW, w!("Show T&yping Indicators"));
     add(opts, ID_OPT_TYPING_SEND, w!("Send Typing &Notices"));
     add(opts, ID_OPT_TIMESTAMPS, w!("Toggle &Timestamps"));
@@ -638,6 +643,7 @@ unsafe fn build_menu() -> windows::core::Result<HMENU> {
     WINDOW_MENU.store(win.0 as isize, Ordering::Relaxed);
 
     let help = CreatePopupMenu()?;
+    add(help, ID_HELP_UPDATES, w!("Check for &Updates..."));
     add(help, ID_HELP_ABOUT, w!("&About ChimeraIRC"));
     pop(bar, help, w!("&Help"));
 
@@ -1333,6 +1339,8 @@ unsafe fn on_command(hwnd: HWND, id: usize) -> bool {
             send(mdi(), WM_MDIICONARRANGE, 0, 0);
         }
         ID_HELP_ABOUT => crate::about::show(hwnd),
+        ID_HELP_UPDATES => app::check_updates_now(),
+        ID_OPT_UPDATE_START => app::toggle_update_check(),
         _ => return false,
     }
     true
@@ -1436,6 +1444,10 @@ extern "system" fn frame_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> L
             }
             WM_APP_EVENT => {
                 app::drain_events();
+                LRESULT(0)
+            }
+            WM_APP_UPDATE => {
+                app::update_answer();
                 LRESULT(0)
             }
             WM_CLOSE => {
@@ -2272,6 +2284,14 @@ pub fn find_in_output(text: &str, match_case: bool, forward: bool) -> bool {
             true
         }
         None => false,
+    }
+}
+
+pub fn set_update_checked(on: bool) {
+    unsafe {
+        let bar = HMENU(MENU_BAR.load(Ordering::Relaxed) as *mut c_void);
+        let flag = if on { MF_CHECKED } else { MF_UNCHECKED };
+        let _ = CheckMenuItem(bar, ID_OPT_UPDATE_START as u32, (MF_BYCOMMAND | flag).0);
     }
 }
 

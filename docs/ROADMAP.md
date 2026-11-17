@@ -36,13 +36,14 @@ Where the project is and where it is going. These are plans and ideas, not promi
 
 **Packaging**
 - Per-user MSI installer that upgrades in place, and a portable ZIP
+- Update check: Help > Check for Updates, and an optional once-a-day check at start (off by default); it only tells you
+  and opens the release page, it never installs anything
 
 ## 🔜 Next
 
 | Item | Notes |
 |---|---|
 | **Code signing** | Windows SmartScreen warns about unsigned downloads. Likely through SignPath (free for open source) or Microsoft's cloud signing. |
-| **Update check** | Tell you when a newer release is on GitHub (opt-in, and never automatic). |
 | **More HydraIRC import** | Command profiles, color schemes and sounds. |
 | **Notification sounds** | Per-event sounds and a choice of what plays. |
 | **Better highlights** | Regular expressions, per-channel rules. |

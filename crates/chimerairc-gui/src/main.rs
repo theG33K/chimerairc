@@ -82,6 +82,7 @@ fn run() -> windows::core::Result<()> {
     }
     app::sync_menu();
     look::apply();
+    app::update_check_on_start();
     app::new_server_window();
     app::refresh_status();
 

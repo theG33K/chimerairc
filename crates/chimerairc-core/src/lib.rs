@@ -19,6 +19,7 @@ pub mod scram;
 pub mod sts;
 mod session;
 mod state;
+pub mod update;
 pub mod upnp;
 
 pub use config::Config;

@@ -89,6 +89,11 @@ pub struct Settings {
     /// Show who is typing to us (the `+typing` tag), and tell others when we type.
     pub typing_show: bool,
     pub typing_send: bool,
+    /// Look for a newer release on GitHub when the program starts (at most once a day). Off unless switched on:
+    /// nothing is sent anywhere until the user asks.
+    pub update_check: bool,
+    /// When the last automatic check was made (seconds since 1970).
+    pub update_last: u64,
     /// Remembered Strict Transport Security policies.
     pub sts: Vec<StsPolicy>,
     /// PEM file with the TLS client certificate (and its key, unless `client_key` names another file).
@@ -146,6 +151,8 @@ impl Default for Settings {
             history_on_join: 50,
             typing_show: true,
             typing_send: true,
+            update_check: false,
+            update_last: 0,
             sts: Vec::new(),
             client_cert: String::new(),
             client_key: String::new(),
@@ -211,6 +218,8 @@ impl Settings {
                 "client_key" => s.client_key = v.into(),
                 "typing_show" => s.typing_show = b,
                 "typing_send" => s.typing_send = b,
+                "update_check" => s.update_check = b,
+                "update_last" => s.update_last = v.parse().unwrap_or(0),
                 "history_lines" => s.history_on_join = v.parse::<u32>().unwrap_or(50).min(500),
                 "server" => s.servers.extend(ListedServer::from_setting(v)),
                 "dock" => dock_lines.push(v.to_owned()),
@@ -322,7 +331,7 @@ impl Settings {
         );
         out.push_str(&format!("dcc_ip={}\ndcc_ports={}\n", one_line(&self.dcc_ip), one_line(&self.dcc_ports)));
         out.push_str(&format!(
-            "dcc_reject_exts={}\ndcc_max_mb={}\ndcc_reject_chat={}\ndcc_limit_kb={}\ndcc_upnp={}\nhistory_lines={}\ntyping_show={}\ntyping_send={}\n",
+            "dcc_reject_exts={}\ndcc_max_mb={}\ndcc_reject_chat={}\ndcc_limit_kb={}\ndcc_upnp={}\nhistory_lines={}\ntyping_show={}\ntyping_send={}\nupdate_check={}\nupdate_last={}\n",
             one_line(&self.dcc_reject_exts),
             self.dcc_max_mb,
             flag(self.dcc_reject_chat),
@@ -330,7 +339,9 @@ impl Settings {
             flag(self.dcc_upnp),
             self.history_on_join,
             flag(self.typing_show),
-            flag(self.typing_send)
+            flag(self.typing_send),
+            flag(self.update_check),
+            self.update_last
         ));
         for f in self.dock.dock_fields() {
             out.push_str("dock=");
@@ -584,6 +595,19 @@ mod tests {
         s.typing_show = false;
         let back = Settings::parse(&s.serialize());
         assert!(!back.typing_show && !back.typing_send);
+    }
+
+    #[test]
+    fn the_update_check_is_off_by_default_and_remembered() {
+        let d = Settings::default();
+        assert!(!d.update_check && d.update_last == 0);
+        assert!(!Settings::parse("nick=x\n").update_check, "a file without the lines keeps the default: off");
+        let mut s = Settings::default();
+        s.update_check = true;
+        s.update_last = 1_700_000_000;
+        let back = Settings::parse(&s.serialize());
+        assert!(back.update_check && back.update_last == 1_700_000_000);
+        assert_eq!(Settings::parse("update_last=junk\n").update_last, 0);
     }
 
     #[test]

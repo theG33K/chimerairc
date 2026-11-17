@@ -160,6 +160,7 @@ pub fn sync_menu() {
     ui::set_timestamps_checked(ts);
     let (ts_show, ts_send) = with(|a| (a.settings.typing_show, a.settings.typing_send));
     ui::set_typing_checked(ts_show, ts_send);
+    ui::set_update_checked(with(|a| a.settings.update_check));
     sync_favorites();
     ui::apply_view(tb, ul, lg);
     ui::apply_dock(dock_layout());
@@ -543,6 +544,122 @@ pub fn disconnect(conn: u32) {
             c.quit(Some(&quit_msg()));
         }
         None => server_print(conn, "* Not connected."),
+    }
+}
+
+// ------------------------------------------------------------------ update check
+
+/// The GitHub repository whose releases are looked at.
+const UPDATE_REPO: &str = "theG33K/chimerairc";
+
+/// The answer of the check that is on its way: (the user asked for it, what was found).
+static UPDATE_ANSWER: Mutex<Option<(bool, Result<chimerairc_core::update::Outcome, String>)>> = Mutex::new(None);
+
+/// The version the program says it is (a test can pretend with `CHIMERAIRC_TEST_VERSION`).
+fn current_version() -> String {
+    std::env::var("CHIMERAIRC_TEST_VERSION").ok().filter(|v| chimerairc_core::update::parse_version(v).is_some()).unwrap_or_else(|| crate::about::VERSION.to_owned())
+}
+
+/// Ask GitHub for the release list in the background; the answer comes back as `WM_APP_UPDATE`.
+fn start_update_check(manual: bool) {
+    let frame = raw(ui::frame());
+    let current = current_version();
+    with(|a| {
+        let _guard = a.rt.enter();
+        a.rt.spawn(async move {
+            let result = chimerairc_core::update::check_github(UPDATE_REPO, &current).await;
+            *UPDATE_ANSWER.lock().unwrap() = Some((manual, result));
+            unsafe {
+                let _ = PostMessageW(hw(frame), ui::WM_APP_UPDATE, WPARAM(0), LPARAM(0));
+            }
+        });
+    });
+}
+
+/// Help > Check for Updates...
+pub fn check_updates_now() {
+    start_update_check(true);
+}
+
+/// Options > Check for Updates at Start: off unless the user turns it on.
+pub fn toggle_update_check() {
+    let on = with(|a| {
+        a.settings.update_check = !a.settings.update_check;
+        a.settings.save();
+        a.settings.update_check
+    });
+    sync_menu();
+    if on {
+        dialogs::info(
+            ui::frame(),
+            "Check for updates",
+            "ChimeraIRC will now look for a newer release on GitHub when it starts, at most once a day. The request carries \
+             only the program name and version. Nothing is ever downloaded or installed by itself.",
+        );
+    }
+}
+
+/// At start-up: when the user has switched the check on and a day has passed, look quietly.
+pub fn update_check_on_start() {
+    let due = with(|a| {
+        let now = unix_now();
+        let due = a.settings.update_check && now.saturating_sub(a.settings.update_last) >= 24 * 3600;
+        if due {
+            a.settings.update_last = now;
+            a.settings.save();
+        }
+        due
+    });
+    if due {
+        start_update_check(false);
+    }
+}
+
+/// The check has an answer: tell the user (a question and a page to open when they asked; one line otherwise).
+pub fn update_answer() {
+    use chimerairc_core::update::Outcome;
+    let Some((manual, result)) = UPDATE_ANSWER.lock().unwrap().take() else { return };
+    let owner = ui::frame();
+    let current = current_version();
+    match result {
+        Ok(Outcome::Newer(r)) => {
+            let kind = if r.prerelease { " (pre-release)" } else { "" };
+            if manual {
+                let text = format!("ChimeraIRC {} is available{kind}. You have {current}.\n\nOpen the download page?", r.tag.trim_start_matches(['v', 'V']));
+                if dialogs::confirm(owner, "Check for updates", &text) {
+                    open_release_page(&r.url);
+                }
+            } else if let Some(h) = ui::active_child() {
+                ui::print(h, None, &format!("* ChimeraIRC {} is available{kind} (you have {current}): Help > Check for Updates...", r.tag.trim_start_matches(['v', 'V'])), LineKind::Info, &highlight::Marks::default());
+            }
+        }
+        Ok(Outcome::UpToDate { .. }) => {
+            if manual {
+                dialogs::info(owner, "Check for updates", &format!("You have the latest version of ChimeraIRC ({current})."));
+            }
+        }
+        Err(e) => {
+            if manual {
+                dialogs::message(owner, "Check for updates", &format!("The check could not be made: {e}."));
+            }
+        }
+    }
+}
+
+/// Open a release page, but only one of this project's own on github.com.
+fn open_release_page(url: &str) {
+    let ok = url.starts_with(&format!("https://github.com/{UPDATE_REPO}/")) && !url.contains(char::is_whitespace);
+    if ok {
+        shell_open_url(url);
+    } else {
+        dialogs::message(ui::frame(), "Check for updates", "The release page address was not one of this project's, so it was not opened.");
+    }
+}
+
+fn shell_open_url(url: &str) {
+    let u = wide(url);
+    unsafe {
+        windows::Win32::UI::Shell::ShellExecuteW(None, windows::core::w!("open"), windows::core::PCWSTR(u.as_ptr()), None, None, SW_SHOWNORMAL);
     }
 }
 

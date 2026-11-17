@@ -42,7 +42,7 @@ one `.exe` of about 4 MB.
 | 📁 **DCC** | Send and receive files and chats: resume, passive, IPv6, turbo, TLS; UPnP / NAT-PMP / PCP port mapping; drag a file onto a chat to send it. |
 | 👥 **People** | Buddy list with groups, ignore list, away marks in the nick list, a global user list. |
 | 🧰 **Make it yours** | Identities per network, auto-perform scripts, your own aliases, favorites with auto-join. |
-| 📦 **Easy to install** | A per-user MSI (no administrator rights) or a portable ZIP. |
+| 📦 **Easy to install** | A per-user MSI (no administrator rights) or a portable ZIP. **Help → Check for Updates…** tells you when a newer release is out. |
 
 ## 📥 Install
 
@@ -109,6 +109,7 @@ Almost everything is set from the **Options** menu; the program saves it for you
 | **Options → Aliases…** | Your own commands: `slap = /me slaps $1 around with a large trout`. |
 | **Options → Highlights…**, **Ignore List…** | Words that light up a window, and people to hide. |
 | **Options → Show Typing Indicators / Send Typing Notices** | See who is typing; choose whether to tell others you are. |
+| **Options → Check for Updates at Start** | Off by default. When on, ChimeraIRC looks for a newer release on GitHub at start-up (at most once a day) and says so in the status window. **Help → Check for Updates…** does it on request. |
 | **Favorites** | Servers and channels to join automatically. |
 | **View → Layouts** | Save and recall up to five arrangements of the docked panes. |
 
@@ -140,6 +141,9 @@ Tips:
 - Logins you type to services are masked on screen (`identify ******`).
 - Pasting several lines asks first, sends them slowly, and never runs a pasted `/command`.
 - Pointing at a link shows where it really goes; nothing is fetched to make a preview.
+- The update check is the only thing ChimeraIRC ever asks of the internet by itself, and only if you switch it on: one
+  request to GitHub for the list of releases, carrying just the program name and version. Nothing is downloaded or installed
+  automatically.
 
 ## 🔨 Build from source
 
