@@ -481,9 +481,15 @@ unsafe extern "system" fn child_proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM, 
                 paint_caption_frame(h);
                 return r;
             }
-            WM_SETTEXT | WM_SETICON => {
+            // Anything that can make the system draw its own caption (a window shown, activated, moved or restyled,
+            // most of all while another window of the program, like the channel list, has the focus) is followed by
+            // a repaint here, so the frame never stays in the system's look.
+            WM_SETTEXT | WM_SETICON | WM_MDIACTIVATE | WM_WINDOWPOSCHANGED | WM_SHOWWINDOW | WM_STYLECHANGED | WM_ACTIVATE
+            | WM_ACTIVATEAPP | WM_SETFOCUS | WM_KILLFOCUS | WM_THEMECHANGED => {
                 let r = windows::Win32::UI::Shell::DefSubclassProc(h, msg, wp, lp);
                 paint_caption_frame(h);
+                // and once more after the messages already waiting have been handled
+                let _ = PostMessageW(h, WM_NCPAINT, WPARAM(1), LPARAM(0));
                 return r;
             }
             _ => {}
