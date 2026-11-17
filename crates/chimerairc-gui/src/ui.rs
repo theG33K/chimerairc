@@ -702,14 +702,15 @@ unsafe fn load_icons(res: u16, icons: i32) -> HIMAGELIST {
     himl
 }
 
-/// The toolbar icons drawn for the dark theme (light strokes, bright accents, with an alpha channel), at the size
-/// that fits the screen's scale: 16, 32 or 48 pixels.
-unsafe fn load_dark_icons() -> HIMAGELIST {
+/// The toolbar icons drawn for a theme (light strokes for the dark theme, dark strokes for the light one; bright
+/// accents, with an alpha channel), at the size that fits the screen's scale: 16, 32 or 48 pixels.
+unsafe fn load_themed_icons(dark: bool) -> HIMAGELIST {
     let factor = ((GetDpiForSystem() as i32 + 48) / 96).max(1);
+    let base: u16 = if dark { 110 } else { 113 };
     let (res, size) = match factor {
-        1 => (110u16, 16),
-        2 => (111u16, 32),
-        _ => (112u16, 48),
+        1 => (base, 16),
+        2 => (base + 1, 32),
+        _ => (base + 2, 48),
     };
     let Ok(src) = LoadImageW(hinst(), PCWSTR(res as usize as *const u16), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION) else {
         return HIMAGELIST::default();
@@ -721,13 +722,11 @@ unsafe fn load_dark_icons() -> HIMAGELIST {
     himl
 }
 
-/// The toolbar icons for the current theme: HydraIRC's own in Light, the dark set in Dark.
+/// The toolbar icons for the current theme (HydraIRC's own bitmap is only the fallback).
 unsafe fn toolbar_icons() -> HIMAGELIST {
-    if crate::look::theme().dark {
-        let himl = load_dark_icons();
-        if !himl.is_invalid() {
-            return himl;
-        }
+    let himl = load_themed_icons(crate::look::theme().dark);
+    if !himl.is_invalid() {
+        return himl;
     }
     load_icons(100, 18)
 }

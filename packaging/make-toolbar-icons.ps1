@@ -13,8 +13,15 @@ Add-Type -AssemblyName System.Drawing
 $out = Join-Path $PSScriptRoot "..\crates\chimerairc-gui\assets"
 
 function Col([string]$hex, [int]$alpha = 255) { $c = [System.Drawing.ColorTranslator]::FromHtml($hex); [System.Drawing.Color]::FromArgb($alpha, $c.R, $c.G, $c.B) }
-$LINE = Col "#d6dce6"; $FILL = Col "#343a44"; $BAR = Col "#4f6f9f"; $BLUE = Col "#5aa9ff"; $GREEN = Col "#4fd16a"
-$RED = Col "#ff6b6b"; $AMBER = Col "#f2b84b"; $WHITE = Col "#ffffff"; $GREY = Col "#8b94a3"
+function Use-Palette([string]$theme) {
+  if ($theme -eq "dark") {
+    $script:LINE = Col "#d6dce6"; $script:FILL = Col "#343a44"; $script:BAR = Col "#4f6f9f"; $script:BLUE = Col "#5aa9ff"; $script:GREEN = Col "#4fd16a"
+    $script:RED = Col "#ff6b6b"; $script:AMBER = Col "#f2b84b"; $script:WHITE = Col "#ffffff"; $script:GREY = Col "#8b94a3"
+  } else {
+    $script:LINE = Col "#46505f"; $script:FILL = Col "#eef2f8"; $script:BAR = Col "#6d97d6"; $script:BLUE = Col "#2f7de0"; $script:GREEN = Col "#2fa84a"
+    $script:RED = Col "#e04848"; $script:AMBER = Col "#e09a1a"; $script:WHITE = Col "#ffffff"; $script:GREY = Col "#7d8795"
+  }
+}
 
 function Pts($pts, $s) { $a = @(); for ($i = 0; $i -lt $pts.Count; $i += 2) { $a += New-Object System.Drawing.PointF(([single]($pts[$i] * $s)), ([single]($pts[$i + 1] * $s))) }; return ,([System.Drawing.PointF[]]$a) }
 function RRect([single]$x, [single]$y, [single]$w, [single]$h, [single]$r) {
@@ -79,6 +86,7 @@ function Draw-Icon($g, [int]$slot, [single]$s) {
   $g.ResetTransform()
 }
 
+foreach ($theme in "dark", "light") { Use-Palette $theme
 foreach ($size in 16, 32, 48) {
   $s = $size / 16.0
   $bmp = New-Object System.Drawing.Bitmap(([int](18 * $size)), $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -88,7 +96,7 @@ foreach ($size in 16, 32, 48) {
   $g.Clear([System.Drawing.Color]::Transparent)
   foreach ($slot in 0, 1, 2, 3, 4, 5, 6, 7, 9, 15) { Draw-Icon $g $slot $s }
   $g.Dispose()
-  $path = Join-Path $out "toolbar_dark_$size.bmp"
+  $path = Join-Path $out "toolbar_${theme}_$size.bmp"
   $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Bmp)
   $bmp.Dispose()
   # the image list wants premultiplied alpha: colour = colour x alpha / 255 (the file holds BGRA after a 54 byte header)
@@ -100,4 +108,5 @@ foreach ($size in 16, 32, 48) {
   }
   [IO.File]::WriteAllBytes($path, $bytes)
   "wrote $path"
+}
 }

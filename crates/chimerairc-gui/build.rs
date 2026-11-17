@@ -22,6 +22,9 @@ fn main() {
 110 BITMAP "{dark16}"
 111 BITMAP "{dark32}"
 112 BITMAP "{dark48}"
+113 BITMAP "{light16}"
+114 BITMAP "{light32}"
+115 BITMAP "{light48}"
 101 BITMAP "{tabs}"
 
 1 VERSIONINFO
@@ -59,6 +62,9 @@ END
         dark16 = path("toolbar_dark_16.bmp"),
         dark32 = path("toolbar_dark_32.bmp"),
         dark48 = path("toolbar_dark_48.bmp"),
+        light16 = path("toolbar_light_16.bmp"),
+        light32 = path("toolbar_light_32.bmp"),
+        light48 = path("toolbar_light_48.bmp"),
         tabs = path("tabicons.bmp"),
     );
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("chimerairc.rc");
