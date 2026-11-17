@@ -158,6 +158,10 @@ pub fn apply() {
         extern "system" fn each(h: HWND, _: LPARAM) -> BOOL {
             style_title_bar(h);
             style_tree(h);
+            // every control of the window is painted again, labels and status lines included
+            unsafe {
+                let _ = RedrawWindow(h, None, None, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+            }
             true.into()
         }
         let _ = EnumThreadWindows(GetCurrentThreadId(), Some(each), LPARAM(0));
