@@ -13,7 +13,10 @@
 
     <SummaryInformation Description="ChimeraIRC - an IRC client for Windows" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of ChimeraIRC is already installed." />
+    <!-- A newer build of the same version replaces the old one: the exe's file version (0.1.0.<build>) is higher, which is
+         what Windows Installer needs to overwrite it. (The old product is removed first, by the default schedule; the new exe
+         is then copied because it was seen to be newer when the installer worked out what to do.) -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ChimeraIRC is already installed." AllowSameVersionUpgrades="yes" />
 
     <Icon Id="AppIcon.ico" SourceFile="$(Icon)" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />

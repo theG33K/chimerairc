@@ -37,7 +37,8 @@ $dist = "$root\dist"
 New-Item -ItemType Directory -Force $dist | Out-Null
 Write-Host "ChimeraIRC $version"
 
-# ---- build
+# ---- build (the file version gets a build number from the commit count, so each build upgrades the one before it)
+$env:CHIMERA_BUILD = (git rev-list --count HEAD 2>$null)
 cargo build --release -p chimerairc
 if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 $exe = "$root\target\release\chimerairc.exe"

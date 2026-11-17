@@ -12,6 +12,15 @@ fn main() {
     let version = env::var("CARGO_PKG_VERSION").unwrap();
     let mut nums: Vec<u32> = version.split(|c: char| !c.is_ascii_digit()).filter_map(|p| p.parse().ok()).collect();
     nums.resize(4, 0);
+    // The fourth part is a build number, so that every build has a higher file version than the one before: Windows
+    // Installer only replaces a file with a higher version, and a same-version upgrade would otherwise keep the old exe.
+    // `CHIMERA_BUILD` sets it; without it the number of commits in the repository is used (0 outside a repository).
+    println!("cargo:rerun-if-env-changed=CHIMERA_BUILD");
+    let build: u32 = env::var("CHIMERA_BUILD").ok().and_then(|v| v.trim().parse().ok()).or_else(|| {
+        let out = std::process::Command::new("git").args(["rev-list", "--count", "HEAD"]).output().ok()?;
+        String::from_utf8(out.stdout).ok()?.trim().parse().ok()
+    }).unwrap_or(0);
+    nums[3] = build.min(65535);
     let comma = nums.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
     let dotted = nums.iter().map(u32::to_string).collect::<Vec<_>>().join(".");
 
