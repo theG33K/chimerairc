@@ -442,7 +442,9 @@ unsafe fn paint_caption_frame(h: HWND) {
     FillRect(dc, &RECT { left: bar.left, top: bar.bottom - 1, right: bar.right, bottom: bar.bottom }, rule);
     let _ = DeleteObject(HGDIOBJ(rule.0));
 
-    let bh = bar.bottom - bar.top;
+    // the painted caption runs from the outer line to the rule under it: centre everything in that band
+    bar.top = 1;
+    let bh = bar.bottom - 1 - bar.top;
     // the buttons: Marlett is the font the system draws its caption buttons with (0 minimize, 1 maximize,
     // 2 restore, r close)
     let face = crate::util::wide("Marlett");
@@ -458,6 +460,8 @@ unsafe fn paint_caption_frame(h: HWND) {
         }
         let mut r = info.rects[slot];
         let _ = OffsetRect(&mut r, -win.left, -win.top);
+        r.top = bar.top;
+        r.bottom = bar.top + bh;
         if r.right <= r.left {
             continue;
         }
@@ -485,7 +489,7 @@ unsafe fn paint_caption_frame(h: HWND) {
     let font = HGDIOBJ(crate::ui::ui_font_raw() as *mut c_void);
     let old = SelectObject(dc, font);
     SetTextColor(dc, colorref(fg));
-    let mut tr = RECT { left: x, top: bar.top, right: first_button - crate::util::px(4), bottom: bar.bottom };
+    let mut tr = RECT { left: x, top: bar.top, right: first_button - crate::util::px(4), bottom: bar.top + bh };
     if n > 0 && tr.right > tr.left {
         DrawTextW(dc, &mut buf[..n], &mut tr, DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
     }
