@@ -1044,6 +1044,55 @@ fn tab_select(child: HWND) {
     }
 }
 
+/// `NMCUSTOMDRAW`, the part of it that is used.
+#[repr(C)]
+struct NmCustomDraw {
+    hdr: NMHDR,
+    stage: u32,
+    hdc: HDC,
+    rc: RECT,
+    item: usize,
+    state: u32,
+    lparam: isize,
+}
+
+/// Custom drawing of the toolbar: a button under the pointer, pressed, or checked gets a clearly visible fill and a
+/// thin border (the system's own hot look is nearly invisible in the light theme).
+unsafe fn toolbar_custom_draw(d: &NmCustomDraw) -> isize {
+    const CDDS_PREPAINT: u32 = 0x1;
+    const CDDS_ITEMPREPAINT: u32 = 0x10001;
+    const CDRF_NOTIFYITEMDRAW: isize = 0x20;
+    const TBCDRF_NOBACKGROUND: isize = 0x0040_0000;
+    const CDIS_SELECTED: u32 = 0x1;
+    const CDIS_DISABLED: u32 = 0x4;
+    const CDIS_CHECKED: u32 = 0x8;
+    const CDIS_HOT: u32 = 0x40;
+    if d.stage == CDDS_PREPAINT {
+        return CDRF_NOTIFYITEMDRAW;
+    }
+    if d.stage != CDDS_ITEMPREPAINT || d.state & CDIS_DISABLED != 0 {
+        return 0;
+    }
+    let dark = crate::look::theme().dark;
+    // (fill, border)
+    let (fill, border) = if d.state & CDIS_SELECTED != 0 {
+        if dark { ((0x25, 0x3e, 0x64), (0x4f, 0x80, 0xc4)) } else { ((0xa4, 0xbc, 0xdd), (0x5f, 0x84, 0xbb)) }
+    } else if d.state & CDIS_CHECKED != 0 {
+        if dark { ((0x2d, 0x4c, 0x7a), (0x4f, 0x80, 0xc4)) } else { ((0xb9, 0xcd, 0xe8), (0x6a, 0x8f, 0xc4)) }
+    } else if d.state & CDIS_HOT != 0 {
+        if dark { ((0x3c, 0x44, 0x52), (0x5a, 0x66, 0x7c)) } else { ((0xcf, 0xdc, 0xee), (0x8f, 0xab, 0xd3)) }
+    } else {
+        return 0;
+    };
+    let rgb = |c: (u8, u8, u8)| windows::Win32::Foundation::COLORREF(c.0 as u32 | (c.1 as u32) << 8 | (c.2 as u32) << 16);
+    let (fb, bb) = (CreateSolidBrush(rgb(fill)), CreateSolidBrush(rgb(border)));
+    FillRect(d.hdc, &d.rc, fb);
+    FrameRect(d.hdc, &d.rc, bb);
+    let _ = DeleteObject(HGDIOBJ(fb.0));
+    let _ = DeleteObject(HGDIOBJ(bb.0));
+    TBCDRF_NOBACKGROUND
+}
+
 /// The menu of a tab in the main tab strip: the same commands as the File menu, with their shortcuts.
 unsafe fn tab_context_menu(frame_hwnd: HWND) {
     let mut pt = windows::Win32::Foundation::POINT::default();
@@ -1332,6 +1381,10 @@ extern "system" fn frame_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> L
                         send(mdi(), WM_MDIACTIVATE, raw(target) as usize, 0);
                     }
                     return LRESULT(0);
+                }
+                // toolbar buttons: the hot, pressed and checked looks are drawn here, in colours that show
+                if nm.hwndFrom == toolbar() && nm.code == NM_CUSTOMDRAW {
+                    return LRESULT(toolbar_custom_draw(&*(lp.0 as *const NmCustomDraw)));
                 }
                 // right-click on a tab: the menu for that window
                 if nm.hwndFrom == tab() && nm.code == NM_RCLICK {
