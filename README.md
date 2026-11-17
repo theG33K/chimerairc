@@ -164,12 +164,12 @@ To make the installer and the portable ZIP (into `dist\`), see [`packaging/READM
 | `crates/chimerairc-core` | Client engine: sans-IO `Session` (CAP, SASL, ISUPPORT, channel state), the TLS transport, DCC, port mapping. |
 | `crates/chimerairc-gui` | The native Win32 program (`chimerairc.exe`). |
 | `packaging/` | Installer (WiX), portable ZIP and icon scripts. |
-| `docs/ROADMAP.md` | What is done, what is next, and the standards plan. |
+| `docs/ROADMAP.md` | What works today, what comes next, and ideas. |
 
 ## 🧭 Roadmap
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full feature map from HydraIRC and the plan for what comes next
-(code signing, update checks, more IRCv3, scripting).
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what works today and what comes next (code signing, update checks, more
+HydraIRC import, and ideas such as a Linux version).
 
 ## 📜 License
 
