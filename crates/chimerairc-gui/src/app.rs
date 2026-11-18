@@ -387,31 +387,32 @@ fn highlight_rules(my_nick: &str) -> Vec<highlight::Rule> {
     with(|a| {
         let mut rules = Vec::new();
         if a.settings.hl_nick && !my_nick.is_empty() {
-            rules.push(highlight::Rule {
-                word: my_nick.to_owned(),
-                case_sensitive: false,
-                whole_word: true,
-                whole_line: true,
-                color: Rgb(0xc0, 0x00, 0x00),
-            });
+            rules.push(highlight::Rule { whole_word: true, whole_line: true, ..highlight::Rule::new(my_nick, Rgb(0xc0, 0x00, 0x00)) });
         }
         rules.extend(a.settings.highlights.iter().cloned());
         rules
     })
 }
 
-/// Taskbar flash / sound for a highlight, only while the app is in the background.
-fn notify_highlight() {
-    let (flash, beep) = with(|a| (a.settings.hl_flash, a.settings.hl_beep));
-    if ui::app_is_foreground() {
-        return;
-    }
-    if flash {
+/// Taskbar flash and sound for a highlight; `own` is the sound of the rule that matched, if it has one.
+fn notify_highlight(own: &str) {
+    if with(|a| a.settings.hl_flash) && !ui::app_is_foreground() {
         ui::flash_taskbar();
     }
-    if beep {
-        ui::beep();
+    play_sound("highlight", own);
+}
+
+/// Play the sound for an event. A sound a highlight rule asks for (`own`) beats the event's own choice. With
+/// "only in the background" on (the default) nothing plays while ChimeraIRC is the window in use.
+pub fn play_sound(event: &str, own: &str) {
+    let (chosen, background_only) = with(|a| {
+        let own = own.trim();
+        (if own.is_empty() { a.settings.sound_for(event).to_owned() } else { own.to_owned() }, a.settings.sounds_background)
+    });
+    if background_only && ui::app_is_foreground() {
+        return;
     }
+    crate::sounds::play(&chosen);
 }
 
 /// Status-style line (grey).
@@ -2890,15 +2891,91 @@ pub fn open_window_log() {
 
 pub fn highlights_dialog() {
     let st = settings();
-    let current = hldialog::HighlightPrefs { nick: st.hl_nick, flash: st.hl_flash, beep: st.hl_beep, rules: st.highlights };
+    let current = hldialog::HighlightPrefs { nick: st.hl_nick, flash: st.hl_flash, rules: st.highlights };
     let Some(new) = hldialog::show(ui::frame(), &current) else { return };
     with(|a| {
         a.settings.hl_nick = new.nick;
         a.settings.hl_flash = new.flash;
-        a.settings.hl_beep = new.beep;
         a.settings.highlights = new.rules;
         a.settings.save();
     });
+}
+
+/// Options > Sounds: which sound plays for which event.
+pub fn sounds_dialog() {
+    use crate::sounds::{self, EVENTS};
+    let (chosen, background) = with(|a| (a.settings.sounds.clone(), a.settings.sounds_background));
+    let mut values: Vec<String> = EVENTS.iter().map(|e| sounds::choice_for(&chosen, e.id).to_owned()).collect();
+    let mut background = background;
+    loop {
+        let names: Vec<&str> = sounds::NAMES.iter().map(|(n, _)| *n).collect();
+        let mut fields = vec![Field::note(&format!(
+            "Highlight is a message that mentions your nick or matches a highlight rule. For each event write off, one of the Windows sounds ({}), or the path of a .wav file such as C:\\Sounds\\ping.wav. Try one with /sound <name or file>.",
+            names.join(", ")
+        ))];
+        for (e, v) in EVENTS.iter().zip(&values) {
+            fields.push(Field::text(e.label, v));
+        }
+        fields.push(Field::wide_check("Only play sounds while ChimeraIRC is in the background", background));
+        let Some(v) = dialogs::show(ui::frame(), "Sounds", &fields) else { return };
+        values = (0..EVENTS.len()).map(|i| v[i + 1].trim().to_owned()).collect();
+        background = v[EVENTS.len() + 1] == "1";
+        let bad = EVENTS.iter().zip(&values).find_map(|(e, s)| sounds::check(s).err().map(|m| format!("{}: {m}", e.label)));
+        if let Some(m) = bad {
+            dialogs::message(ui::frame(), "Sounds", &m);
+            continue;
+        }
+        with(|a| {
+            a.settings.sounds.clear();
+            for (e, s) in EVENTS.iter().zip(&values) {
+                if s.as_str() != e.default {
+                    a.settings.set_sound(e.id, if s.is_empty() { "off" } else { s });
+                }
+            }
+            a.settings.sounds_background = background;
+            a.settings.save();
+        });
+        return;
+    }
+}
+
+/// `/sound` lists the events and their sounds, `/sound <name or file>` plays one, `/sound <event> <sound>` sets one.
+fn sound_command(h: HWND, rest: &str) {
+    use crate::sounds::{self, EVENTS};
+    let rest = rest.trim();
+    if rest.is_empty() {
+        local(h, "* Sounds (change them under Options > Sounds, or /sound <event> <sound>; try one with /sound <name or file>):");
+        for e in &EVENTS {
+            local(h, &format!("  {:<12} {}   [{}]", e.id, settings().sound_for(e.id), e.label));
+        }
+        let names: Vec<&str> = sounds::NAMES.iter().map(|(n, _)| *n).collect();
+        local(h, &format!("  Windows sounds: {}", names.join(", ")));
+        return;
+    }
+    let (first, tail) = rest.split_once(char::is_whitespace).map(|(a, b)| (a, b.trim())).unwrap_or((rest, ""));
+    if let Some(e) = sounds::event(&first.to_ascii_lowercase()) {
+        if tail.is_empty() {
+            local(h, &format!("* {}: {}", e.id, settings().sound_for(e.id)));
+            return;
+        }
+        match sounds::check(tail) {
+            Ok(_) => {
+                with(|a| {
+                    a.settings.set_sound(e.id, if tail.eq_ignore_ascii_case("none") { "off" } else { tail });
+                    a.settings.save();
+                });
+                local(h, &format!("* {} sound: {tail}", e.id));
+                sounds::play(tail);
+            }
+            Err(m) => local(h, &format!("* {m}")),
+        }
+        return;
+    }
+    match sounds::check(rest) {
+        Ok(sounds::Spec::Off) => local(h, "* That is silent."),
+        Ok(_) => sounds::play(rest),
+        Err(m) => local(h, &format!("* {m}")),
+    }
 }
 
 pub fn toggle_typing_show() {
@@ -3064,6 +3141,7 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
                 "  /perform [list]  /perform edit [network]  /perform run   commands that run when a network connects",
                 "  /history [lines]    /history before|after [point] [lines]    /history around <point>    /history between <point> <point>   chat history from the server (when it has it)",
                 "  Pasting several lines asks first (and sends them about one a second; /stoppaste stops it). Drop a file on a private chat, or on a name in the user list, to send it by DCC.",
+                "  /sound   the sounds for events (/sound <name or file> tries one, /sound <event> <sound> sets one; also Options > Sounds)",
                 "  /alias name text   make your own command (/alias lists them, /alias -d name removes)    /uptime   how long the program and this connection have been up",
                 "  /find <text>   find in this window (F3 next, Shift+F3 previous)    /logsearch <text>   search the saved logs    /identity   nickname, real name and SASL account per network",
                 "  /monitor + <nick>    /monitor - <nick>    /monitor list   (the same as /buddy: you are told when they come and go)",
@@ -3160,6 +3238,7 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
             }
         }
         "alias" => alias_command(h, rest),
+        "sound" | "sounds" => sound_command(h, rest),
         "stoppaste" => stop_paste(h),
         "say" => {
             if rest.is_empty() {
@@ -3682,6 +3761,7 @@ fn on_event(conn: u32, ev: Event) {
     match ev {
         Event::Connected => server_print(conn, "* Connected. Registering..."),
         Event::Registered { nick } => {
+            play_sound("connected", "");
             with(|a| {
                 if let Some(c) = a.conns.get_mut(&conn) {
                     c.nick = nick.clone();
@@ -3768,10 +3848,13 @@ fn on_event(conn: u32, ev: Event) {
                 highlight::Marks::default()
             } else {
                 let prefix_len = line.len() - text.len();
-                highlight::scan(&format::strip(&text), &highlight_rules(&me)).shifted(prefix_len)
+                let here = if is_channel(&target) { highlight::Place::Channel(&target) } else { highlight::Place::Private };
+                highlight::scan(&format::strip(&text), &highlight_rules(&me), here).shifted(prefix_len)
             };
             if !marks.is_empty() {
-                notify_highlight();
+                notify_highlight(&marks.sound);
+            } else if !from_me && kind != ChatKind::Notice && !is_channel(&target) && !perform::looks_like_services(&source.name) {
+                play_sound("private", "");
             }
             if is_channel(&target) {
                 match window_for(conn, Kind::Channel, &target, false) {
@@ -4045,6 +4128,9 @@ fn on_event(conn: u32, ev: Event) {
         Event::Disconnected { reason } => {
             // Which channels were open, for a possible reconnect (read before the flags change).
             let was_registered = with(|a| a.conns.get(&conn).is_some_and(|c| c.registered));
+            if was_registered {
+                play_sound("disconnected", "");
+            }
             let channels = if was_registered { open_channels(conn) } else { Vec::new() };
             with(|a| {
                 if let Some(c) = a.conns.get_mut(&conn) {

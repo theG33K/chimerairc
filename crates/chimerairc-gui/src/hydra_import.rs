@@ -242,12 +242,11 @@ fn parse_highlight(n: Node, p: &mut Parsed) {
     }
     let color = n.attribute("foregroundcolor").and_then(parse_color).unwrap_or(Rgb(0xc0, 0x00, 0x00));
     let rule = Rule {
-        word: word.to_owned(),
         case_sensitive: hl & HL_CASESENSITIVE != 0,
         // Without the substring flag HydraIRC only matched whole words.
         whole_word: hl & HL_SUBSTRING == 0,
         whole_line: hl & HL_WHOLELINE != 0,
-        color,
+        ..Rule::new(word, color)
     };
     merge_highlight(&mut p.highlights, rule);
 }

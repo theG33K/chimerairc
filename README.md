@@ -84,6 +84,7 @@ full list, and press <kbd>Tab</kbd> to complete commands, `#channels` and nicks.
 | `/history [n]`, `/history before\|after\|around\|between …` | Fetch chat history from servers that have it. |
 | `/dcc send <nick> [file]`, `/dcc chat <nick>` | File transfers and direct chats. |
 | `/find <text>`, `/logsearch <text>` | Search the window; search your saved logs. |
+| `/sound [event sound]` | List the event sounds, try one (`/sound message`) or set one (`/sound private mail`). |
 | `/alias [name text]`, `/uptime`, `/identity`, `/perform` | Your own commands, uptime, identities, connect scripts. |
 | `/quit [reason]`, `/clear`, `/close`, `/raw <line>` | Leave, tidy up, or send a raw IRC line. |
 
@@ -108,7 +109,9 @@ Almost everything is set from the **Options** menu; the program saves it for you
 | **Options → Auto-Perform…** | Commands that run when a network connects, e.g. `/msg NickServ identify {ask:Password}` — `{ask:…}` prompts you and never saves it. |
 | **Options → Aliases…** | Your own commands: `slap = /me slaps $1 around with a large trout`. |
 | **Options → Chat Colors…** | Colors of the chat text, and of owners, admins, ops, half-ops and voiced people in the nick list. |
-| **Options → Highlights…**, **Ignore List…** | Words that light up a window, and people to hide. |
+| **Options → Highlights…** | Words or regular expressions that light up a message: choose the color, limit a rule to some channels (`#rust #py* !#offtopic`, or `query` for private chats) and give it its own sound. |
+| **Options → Sounds…** | A sound for each event: highlight, private message, DCC offer, finished transfer, connected, disconnected. Pick a Windows sound or your own `.wav` file; sounds can be limited to when the program is in the background. |
+| **Options → Ignore List…** | People to hide. |
 | **Options → Show Typing Indicators / Send Typing Notices** | See who is typing; choose whether to tell others you are. |
 | **Options → Check for Updates at Start** | Off by default. When on, ChimeraIRC looks for a newer release on GitHub at start-up (at most once a day) and says so in the status window. **Help → Check for Updates…** does it on request. |
 | **Favorites** | Servers and channels to join automatically. |

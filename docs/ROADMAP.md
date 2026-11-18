@@ -21,12 +21,15 @@ Where the project is and where it is going. These are plans and ideas, not promi
 - Docked panes (Servers, Events, Messages, Notices, URLs, Channels, Connections, Users, Buddies, Output):
   drag, split, float, reorder, and save five layouts
 - Light and dark themes (flat, switchable at run time, or follow Windows), custom chat colors and fonts, toolbar icons
-  drawn for each theme
+  drawn for each theme; tested at high DPI scales
 
 **Chatting**
 - Nick list colored by channel rank (owner, admin, op, half-op, voice), with colors you can change
 - Tab completion, highlights, clickable links with a "where does this really go" hint, double-click a channel or nick
 - Find in window, log search, multi-line paste protection, paste a picture or drop a file to send it over DCC
+- Highlights with regular expressions, limited to chosen channels, each with its own color and sound
+- Notification sounds per event (highlight, private message, DCC offer, finished transfer, connect, disconnect): a Windows
+  sound or your own `.wav` file
 - Aliases, `/uptime`, `/say`, away and back, and services messages kept out of the way (logins are masked)
 
 **People and setup**
@@ -46,9 +49,6 @@ Where the project is and where it is going. These are plans and ideas, not promi
 |---|---|
 | **Code signing** | Windows SmartScreen warns about unsigned downloads. Likely through SignPath (free for open source) or Microsoft's cloud signing. |
 | **More HydraIRC import** | Command profiles, color schemes and sounds. |
-| **Notification sounds** | Per-event sounds and a choice of what plays. |
-| **Better highlights** | Regular expressions, per-channel rules. |
-| **High-DPI check** | The program is DPI-aware; larger scales need more testing. |
 
 ## 💡 Ideas
 

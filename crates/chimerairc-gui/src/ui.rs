@@ -139,6 +139,7 @@ const ID_WIN_ARRANGE: usize = 133;
 const ID_HELP_ABOUT: usize = 140;
 const ID_HELP_UPDATES: usize = 141;
 const ID_OPT_UPDATE_START: usize = 180;
+const ID_OPT_SOUNDS: usize = 181;
 
 static FRAME: AtomicIsize = AtomicIsize::new(0);
 static MDI: AtomicIsize = AtomicIsize::new(0);
@@ -608,6 +609,7 @@ unsafe fn build_menu() -> windows::core::Result<HMENU> {
     let opts = CreatePopupMenu()?;
     add(opts, ID_OPT_PREFS, w!("&Preferences...\tCtrl+P"));
     add(opts, ID_OPT_HIGHLIGHTS, w!("&Highlights..."));
+    add(opts, ID_OPT_SOUNDS, w!("&Sounds..."));
     add(opts, ID_OPT_IGNORES, w!("&Ignore List..."));
     add(opts, ID_OPT_PERFORM, w!("Auto-&Perform..."));
     add(opts, ID_OPT_IDENTITIES, w!("I&dentities..."));
@@ -1256,6 +1258,7 @@ unsafe fn on_command(hwnd: HWND, id: usize) -> bool {
         ID_CHANNEL_LIST => app::channel_list_command(),
         ID_OPT_PREFS => app::prefs_dialog(),
         ID_OPT_HIGHLIGHTS => app::highlights_dialog(),
+        ID_OPT_SOUNDS => app::sounds_dialog(),
         ID_OPT_IGNORES => app::ignore_dialog(),
         ID_OPT_PERFORM => app::perform_dialog(None),
         ID_OPT_IDENTITIES => app::identity_dialog(None),
@@ -2273,12 +2276,6 @@ pub fn flash_taskbar() {
     };
     unsafe {
         let _ = FlashWindowEx(&info);
-    }
-}
-
-pub fn beep() {
-    unsafe {
-        let _ = windows::Win32::System::Diagnostics::Debug::MessageBeep(MB_ICONASTERISK);
     }
 }
 

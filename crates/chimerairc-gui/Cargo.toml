@@ -13,6 +13,7 @@ chimerairc-core = { path = "../chimerairc-core" }
 tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
 windows.workspace = true
 roxmltree = "0.21.2"
+regex = "1.13.2"
 
 [build-dependencies]
 embed-resource = "3"

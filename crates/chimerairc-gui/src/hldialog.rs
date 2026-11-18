@@ -3,6 +3,7 @@
 
 use crate::dialogs::{self, Field, ID_CANCEL, ID_OK};
 use crate::highlight::{self, Rule};
+use chimerairc_proto::format::Rgb;
 use crate::ui;
 use crate::util::*;
 use std::ffi::c_void;
@@ -18,7 +19,6 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 pub struct HighlightPrefs {
     pub nick: bool,
     pub flash: bool,
-    pub beep: bool,
     pub rules: Vec<Rule>,
 }
 
@@ -32,7 +32,7 @@ static REGISTERED: std::sync::Once = std::sync::Once::new();
 struct State {
     dlg: HWND,
     list: HWND,
-    checks: [HWND; 3],
+    checks: [HWND; 2],
     rules: Vec<Rule>,
     result: Option<HighlightPrefs>,
     done: bool,
@@ -40,30 +40,39 @@ struct State {
 
 /// Ask for one rule with the form dialog; `None` if cancelled.
 fn edit_rule(owner: HWND, initial: Option<&Rule>) -> Option<Rule> {
-    let (word, whole, case, line, color) = match initial {
-        Some(r) => (r.word.clone(), r.whole_word, r.case_sensitive, r.whole_line, highlight::color_name(r.color)),
-        None => (String::new(), true, false, false, "red".to_owned()),
-    };
+    let blank = Rule { whole_word: true, ..Rule::new("", Rgb(0xc0, 0, 0)) };
+    let r0 = initial.unwrap_or(&blank);
     let mut fields = vec![
-        Field::text("Word or phrase", &word),
-        Field::check("Whole words only", whole),
-        Field::check("Case sensitive", case),
-        Field::check("Colour the entire line", line),
-        Field::text("Colour", &color),
+        Field::text("Word or pattern", &r0.word),
+        Field::wide_check("This is a regular expression", r0.regex),
+        Field::wide_check("Whole words only (not for regular expressions)", r0.whole_word),
+        Field::wide_check("Case sensitive", r0.case_sensitive),
+        Field::wide_check("Colour the entire line", r0.whole_line),
+        Field::text("Colour", &highlight::color_name(r0.color)),
+        Field::text("Only in", &r0.places),
+        Field::note("Only in: leave empty for everywhere, or list channels separated by spaces, with * and ? as wildcards, for example #rust #py* . Put ! before one to leave it out (!#offtopic), and write query for private chats."),
+        Field::text("Sound", &r0.sound),
+        Field::note("Sound: leave empty to use the highlight sound; or off, a Windows sound (asterisk, exclamation, hand, question, default, notify, message, mail, reminder, sms), or the path of a .wav file."),
     ];
     let title = if initial.is_some() { "Edit highlight" } else { "Add highlight" };
     loop {
         let v = dialogs::show(owner, title, &fields)?;
         let word = v[0].trim();
+        let regex = v[1] == "1";
+        let sound = v[8].trim();
         let problem = if word.is_empty() {
-            Some("Enter the word or phrase to highlight.")
-        } else if highlight::parse_color(&v[4]).is_none() {
-            Some("Colour must be a name (red, orange, gold, green, teal, blue, purple, pink, brown, grey, black) or a 6-digit hex value such as C00000.")
+            Some("Enter the word or phrase to highlight.".to_owned())
+        } else if highlight::parse_color(&v[5]).is_none() {
+            Some("Colour must be a name (red, orange, gold, green, teal, blue, purple, pink, brown, grey, black) or a 6-digit hex value such as C00000.".to_owned())
+        } else if let Some(e) = regex.then(|| highlight::compile(word, v[3] == "1").err()).flatten() {
+            Some(format!("That is not a valid regular expression:\n\n{e}"))
+        } else if let Some(e) = (!sound.is_empty()).then(|| crate::sounds::check(sound).err()).flatten() {
+            Some(e)
         } else {
             None
         };
         if let Some(msg) = problem {
-            dialogs::message(owner, "Highlight", msg);
+            dialogs::message(owner, "Highlight", &msg);
             for (f, val) in fields.iter_mut().zip(&v) {
                 f.value = val.clone();
             }
@@ -71,10 +80,13 @@ fn edit_rule(owner: HWND, initial: Option<&Rule>) -> Option<Rule> {
         }
         return Some(Rule {
             word: word.to_owned(),
-            whole_word: v[1] == "1",
-            case_sensitive: v[2] == "1",
-            whole_line: v[3] == "1",
-            color: highlight::parse_color(&v[4])?,
+            regex,
+            whole_word: v[2] == "1",
+            case_sensitive: v[3] == "1",
+            whole_line: v[4] == "1",
+            color: highlight::parse_color(&v[5])?,
+            places: v[6].trim().to_owned(),
+            sound: sound.to_owned(),
         });
     }
 }
@@ -133,7 +145,6 @@ extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT
                         st.result = Some(HighlightPrefs {
                             nick: on(st.checks[0]),
                             flash: on(st.checks[1]),
-                            beep: on(st.checks[2]),
                             rules: st.rules.clone(),
                         });
                         st.done = true;
@@ -173,7 +184,7 @@ pub fn show(owner: HWND, current: &HighlightPrefs) -> Option<HighlightPrefs> {
         });
         let (m, list_w, list_h, btn_w, gap, row) = (px(14), px(330), px(150), px(92), px(10), px(24));
         let client_w = m * 2 + list_w + gap + btn_w;
-        let client_h = m + px(18) + list_h + px(10) + row * 3 + px(12) + px(26) + m;
+        let client_h = m + px(18) + list_h + px(10) + row * 2 + px(12) + px(26) + m;
         let style = WS_POPUP | WS_CAPTION | WS_SYSMENU;
         let ex = WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT;
         let mut rc = RECT { left: 0, top: 0, right: client_w, bottom: client_h };
@@ -197,7 +208,7 @@ pub fn show(owner: HWND, current: &HighlightPrefs) -> Option<HighlightPrefs> {
             SendMessageW(c, WM_SETFONT, WPARAM(font as usize), LPARAM(1));
             c
         };
-        make(w!("STATIC"), "Words that make a message stand out:", WINDOW_STYLE(0), WINDOW_EX_STYLE(0), m, m, list_w, px(18), 0);
+        make(w!("STATIC"), "Words and patterns that make a message stand out:", WINDOW_STYLE(0), WINDOW_EX_STYLE(0), m, m, list_w, px(18), 0);
         let list = make(
             w!("LISTBOX"),
             "",
@@ -232,7 +243,6 @@ pub fn show(owner: HWND, current: &HighlightPrefs) -> Option<HighlightPrefs> {
         let checks = [
             check("Highlight lines that mention my nick", current.nick, 0),
             check("Flash the taskbar when a highlight arrives in the background", current.flash, 1),
-            check("Play a sound when a highlight arrives in the background", current.beep, 2),
         ];
         let oy = client_h - m - px(26);
         let bw = px(84);

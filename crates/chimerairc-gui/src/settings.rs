@@ -30,8 +30,10 @@ pub struct Settings {
     pub hl_nick: bool,
     /// Flash the taskbar button on a highlight while the app is in the background.
     pub hl_flash: bool,
-    /// Play the system sound on a highlight while the app is in the background.
-    pub hl_beep: bool,
+    /// The sound for each event, as (event id, sound text); an event not listed has its default (see `sounds.rs`).
+    pub sounds: Vec<(String, String)>,
+    /// Play sounds only while the program is in the background.
+    pub sounds_background: bool,
     pub highlights: Vec<Rule>,
     /// Write every window's output to a log file. Off by default: logs are private data.
     pub logging: bool,
@@ -119,7 +121,8 @@ impl Default for Settings {
             show_userlist: true,
             hl_nick: true,
             hl_flash: true,
-            hl_beep: false,
+            sounds: Vec::new(),
+            sounds_background: true,
             highlights: Vec::new(),
             logging: false,
             log_dir: String::new(),
@@ -184,6 +187,17 @@ fn one_line(s: &str) -> String {
 }
 
 impl Settings {
+    /// Choose the sound for an event (replacing an earlier choice).
+    pub fn set_sound(&mut self, event: &str, sound: &str) {
+        self.sounds.retain(|(e, _)| e != event);
+        self.sounds.push((event.to_owned(), sound.trim().to_owned()));
+    }
+
+    /// The sound text for an event: the user's choice, or the event's default.
+    pub fn sound_for(&self, event: &str) -> &str {
+        crate::sounds::choice_for(&self.sounds, event)
+    }
+
     pub fn parse(text: &str) -> Settings {
         let mut s = Settings::default();
         let mut dock_lines: Vec<String> = Vec::new();
@@ -203,7 +217,18 @@ impl Settings {
                 "show_userlist" => s.show_userlist = b,
                 "hl_nick" => s.hl_nick = b,
                 "hl_flash" => s.hl_flash = b,
-                "hl_beep" => s.hl_beep = b,
+                // older versions: one switch for the highlight sound
+                "hl_beep" => {
+                    if b {
+                        s.set_sound("highlight", "asterisk");
+                    }
+                }
+                "sounds_background" => s.sounds_background = b,
+                "sound" => {
+                    if let Some((event, sound)) = v.split_once('\t') {
+                        s.set_sound(event, sound);
+                    }
+                }
                 "logging" => s.logging = b,
                 "log_dir" => s.log_dir = v.into(),
                 "dcc_ip" => s.dcc_ip = v.into(),
@@ -310,7 +335,7 @@ impl Settings {
     pub fn serialize(&self) -> String {
         let flag = |b: bool| if b { "1" } else { "0" };
         let mut out = format!(
-            "nick={}\nuser={}\nrealname={}\nquit_msg={}\ntimestamps={}\nshow_toolbar={}\nshow_userlist={}\nhl_nick={}\nhl_flash={}\nhl_beep={}\nlogging={}\nlog_dir={}\nlast_server={}\nlast_port={}\nlast_tls={}\nlast_sasl_account={}\nlast_autojoin={}\n",
+            "nick={}\nuser={}\nrealname={}\nquit_msg={}\ntimestamps={}\nshow_toolbar={}\nshow_userlist={}\nhl_nick={}\nhl_flash={}\nsounds_background={}\nlogging={}\nlog_dir={}\nlast_server={}\nlast_port={}\nlast_tls={}\nlast_sasl_account={}\nlast_autojoin={}\n",
             one_line(&self.nick),
             one_line(&self.user),
             one_line(&self.realname),
@@ -320,7 +345,7 @@ impl Settings {
             flag(self.show_userlist),
             flag(self.hl_nick),
             flag(self.hl_flash),
-            flag(self.hl_beep),
+            flag(self.sounds_background),
             flag(self.logging),
             one_line(&self.log_dir),
             one_line(&self.last_server),
@@ -431,6 +456,10 @@ impl Settings {
             out.push_str(&f.to_setting());
             out.push('\n');
         }
+        for (event, sound) in &self.sounds {
+            let clean = |s: &str| s.replace(['\t', '\n', '\r'], " ");
+            out.push_str(&format!("sound={}\t{}\n", clean(event), clean(sound)));
+        }
         for r in &self.highlights {
             out.push_str("highlight=");
             out.push_str(&r.to_setting());
@@ -502,7 +531,9 @@ mod tests {
         s.show_userlist = false;
         s.hl_nick = false;
         s.hl_flash = false;
-        s.hl_beep = true;
+        s.sounds_background = false;
+        s.set_sound("highlight", "asterisk");
+        s.set_sound("dcc_done", r"C:\Sounds\done.wav");
         s.logging = true;
         s.log_dir = "D:\\chat logs".into();
         s.dcc_ip = "203.0.113.7".into();
@@ -537,8 +568,9 @@ mod tests {
         off.enabled = false;
         s.ignores.push(off);
         s.highlights = vec![
-            Rule { word: "chimerairc".into(), case_sensitive: false, whole_word: true, whole_line: false, color: Rgb(0xc0, 0, 0) },
-            Rule { word: "a|b".into(), case_sensitive: true, whole_word: false, whole_line: true, color: Rgb(0, 0x80, 0) },
+            Rule { whole_word: true, ..Rule::new("chimerairc", Rgb(0xc0, 0, 0)) },
+            Rule { case_sensitive: true, whole_line: true, ..Rule::new("a|b", Rgb(0, 0x80, 0)) },
+            Rule { regex: true, places: "#rust !#rust-ot".into(), sound: "asterisk".into(), ..Rule::new("(foo|bar)+", Rgb(0, 0, 0xc0)) },
         ];
         s.servers.push(ListedServer::new("My Net", "irc.example.org", 6697, true).unwrap());
         s.window = Some(Placement { left: -1200, top: 40, width: 900, height: 650, maximized: true });

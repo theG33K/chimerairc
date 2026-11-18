@@ -52,6 +52,7 @@ mod urls;
 mod perform;
 mod rowfilter;
 mod settings;
+mod sounds;
 mod theme;
 #[cfg(windows)]
 mod look;

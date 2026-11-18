@@ -380,6 +380,7 @@ pub(super) fn on_ctcp(conn: u32, src: &Source, c: &Ctcp) -> bool {
                 }
             });
             if accepted {
+                super::play_sound("dcc_request", "");
                 process_offers();
             } else {
                 server_print(conn, &format!("* Too many DCC offers waiting; dropped one from {}.", src.name));
@@ -1087,6 +1088,7 @@ fn on_event(id: u32, ev: DccEvent) {
                 })
             });
             log_transfer(conn, "Done", kind, &peer, &name, bytes, total.unwrap_or(bytes), "");
+            super::play_sound("dcc_done", "");
             let verb = if kind == XKind::Send { "Sent" } else { "Received" };
             server_print(conn, &format!("* DCC: {verb} {name} ({}) {} {peer}.", human_size(bytes), if kind == XKind::Send { "to" } else { "from" }));
         }
