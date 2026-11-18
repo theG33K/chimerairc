@@ -28,7 +28,7 @@
 ChimeraIRC keeps what made [HydraIRC](https://en.wikipedia.org/wiki/HydraIRC) pleasant — MDI chat windows, panes docked
 around the edges, a classic menu and toolbar — and rebuilds it as a small, native, memory-safe Win32 program with
 current standards: TLS by default, SASL, and the IRCv3 extensions that make IRC feel modern. No runtime, no web view,
-one `.exe` of about 4 MB.
+one `.exe` of about 6 MB.
 
 ## 🚀 Features
 
