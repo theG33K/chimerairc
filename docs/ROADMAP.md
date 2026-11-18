@@ -46,6 +46,7 @@ Where the project is and where it is going. These are plans and ideas, not promi
 | **Code signing** | Windows SmartScreen warns about unsigned downloads. Likely through SignPath (free for open source) or Microsoft's cloud signing. |
 | **More HydraIRC import** | Command profiles, color schemes and sounds. |
 | **Notification sounds** | Per-event sounds and a choice of what plays. |
+| **Channel user list colors** | Colors for ops, voice and the other channel ranks in the nick list. |
 | **Better highlights** | Regular expressions, per-channel rules. |
 | **High-DPI check** | The program is DPI-aware; larger scales need more testing. |
 
