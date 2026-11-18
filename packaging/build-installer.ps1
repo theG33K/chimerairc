@@ -8,6 +8,12 @@
   Tools: cargo, and the WiX Toolset 5 command line (wix.dll) with its UI extension, expected under tools\ (see
   -WixDir). Nothing is installed system-wide.
 
+  -ExePath: package an exe that is already built (for example one signed by a signing service) instead of building
+  one. The build number in its file version is then whatever it already has.
+
+  WiX: the copy under tools\ is used if there is one; otherwise the `wix` command line tool (dotnet tool install
+  --global wix) with its UI extension (wix extension add --global WixToolset.UI.wixext), as on a build server.
+
   Signing: pass -Sign to sign the exe and the MSI with a code-signing certificate from a PFX file. The path comes
   from -Pfx or $env:CHIMERA_SIGN_PFX and the password only from $env:CHIMERA_SIGN_PASSWORD (it is never written
   anywhere). Without -Sign the files are unsigned, and Windows SmartScreen will warn about them.
@@ -23,6 +29,7 @@ param(
   [string]$Pfx = $env:CHIMERA_SIGN_PFX,
   [string]$TimestampUrl = "http://timestamp.digicert.com",
   [string]$WixDir = "$PSScriptRoot\..\tools",
+  [string]$ExePath,
   [switch]$SkipMsi
 )
 $ErrorActionPreference = "Stop"
@@ -38,11 +45,17 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 Write-Host "ChimeraIRC $version"
 
 # ---- build (the file version gets a build number from the commit count, so each build upgrades the one before it)
-$env:CHIMERA_BUILD = (git rev-list --count HEAD 2>$null)
-cargo build --release -p chimerairc
-if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
-$exe = "$root\target\release\chimerairc.exe"
-if (-not (Test-Path $exe)) { throw "$exe was not built" }
+if ($ExePath) {
+  if (-not (Test-Path $ExePath)) { throw "$ExePath does not exist" }
+  $exe = (Resolve-Path $ExePath).Path
+  Write-Host "using $exe"
+} else {
+  $env:CHIMERA_BUILD = (git rev-list --count HEAD 2>$null)
+  cargo build --release -p chimerairc
+  if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
+  $exe = "$root\target\release\chimerairc.exe"
+  if (-not (Test-Path $exe)) { throw "$exe was not built" }
+}
 
 # ---- signing helper (Authenticode through PowerShell: no SDK needed)
 function Sign-File([string]$path) {
@@ -85,7 +98,15 @@ if ($SkipMsi) { return }
 # ---- MSI
 $wixDll = Get-ChildItem "$WixDir\wix" -Recurse -Filter wix.dll -ErrorAction SilentlyContinue | Select-Object -First 1
 $uiExt = Get-ChildItem "$WixDir\wixui" -Recurse -Filter WixToolset.UI.wixext.dll -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $wixDll -or -not $uiExt) { throw "the WiX Toolset was not found under $WixDir (tools\wix and tools\wixui); see packaging\README.md" }
+if ($wixDll -and $uiExt) {
+  $wixRun = @("dotnet", $wixDll.FullName)
+  $uiArg = $uiExt.FullName
+} elseif (Get-Command wix -ErrorAction SilentlyContinue) {
+  $wixRun = @("wix")
+  $uiArg = "WixToolset.UI.wixext"
+} else {
+  throw "the WiX Toolset was not found under $WixDir (tools\wix and tools\wixui) and there is no `wix` command; see packaging\README.md"
+}
 $env:DOTNET_ROLL_FORWARD = "Major"   # wix.dll targets .NET 6; newer runtimes are fine
 
 # the licence page wants RTF: wrap the plain text
@@ -96,9 +117,11 @@ Set-Content "$stage\License.rtf" $rtf -Encoding ASCII
 
 $msi = "$dist\ChimeraIRC-$version-x64.msi"
 Remove-Item $msi -ErrorAction SilentlyContinue
-& dotnet $wixDll.FullName build "$root\packaging\ChimeraIRC.wxs" `
+$wixPre = @()
+if ($wixRun.Count -gt 1) { $wixPre = @($wixRun[1..($wixRun.Count - 1)]) }
+& ($wixRun[0]) @wixPre build "$root\packaging\ChimeraIRC.wxs" `
   -arch x64 -o $msi `
-  -ext $uiExt.FullName `
+  -ext $uiArg `
   -d "Version=$version" -d "ExePath=$stage\chimerairc.exe" -d "LicenseRtf=$stage\License.rtf" `
   -d "LicenseTxt=$stage\LICENSE.txt" -d "ReadmeTxt=$stage\README.txt" `
   -d "Icon=$root\crates\chimerairc-gui\assets\chimerairc.ico" `

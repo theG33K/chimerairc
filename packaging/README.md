@@ -44,3 +44,7 @@ testing. The signing step was tested with a throw-away self-signed certificate; 
 ## The toolbar icons
 
 Both themes use toolbar icons drawn for ChimeraIRC: `packaging\make-toolbar-icons.ps1` draws them (light strokes for the dark theme, dark strokes for the light one, bright accents, anti-aliased with an alpha channel) into `assets\toolbar_dark_16.bmp` / `_32` / `_48` and `toolbar_light_...` for the screen's scale; they are built into the exe and swapped when the theme changes. HydraIRC's original `assets\toolbar.bmp` stays as a fallback.
+
+## Code signing and the release workflow
+
+Releases are built, signed (through SignPath) and published by `.github/workflows/release.yml` when a version tag is pushed; see `packaging\signpath\README.md`. `build-installer.ps1 -ExePath <exe>` packages an exe that is already built, and falls back to the `wix` command line tool when there is no copy under `tools\`.

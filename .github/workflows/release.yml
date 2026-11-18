@@ -1,0 +1,163 @@
+# Build, test, (sign) and publish a release when a version tag is pushed (git tag v0.1.6 && git push origin v0.1.6).
+#
+# Signing: once the project is set up with SignPath (see packaging/signpath/README.md) and the repository has the
+# variable SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN, the exe and the MSI are signed by SignPath
+# (each signing request waits for a manual approval there). Without them the same workflow makes unsigned files.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub release (needs the workflow to run on a version tag)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # to create the release
+    env:
+      SIGNPATH_ORG: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT: ${{ vars.SIGNPATH_PROJECT_SLUG || 'chimerairc' }}
+      SIGNPATH_POLICY: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+      HAS_SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the build number in the file version is the commit count
+
+      # the GNU toolchain (see rust-toolchain.toml) needs gcc, also to build the bundled Lua
+      - name: MinGW gcc
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc
+          path-type: minimal
+      - name: Put MinGW on the path
+        shell: pwsh
+        run: |
+          "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
+          rustup show
+          gcc --version
+
+      - name: Check the tag matches the version
+        shell: pwsh
+        run: |
+          $cargo = Get-Content Cargo.toml -Raw
+          if ($cargo -notmatch '(?m)^version\s*=\s*"(\d+\.\d+\.\d+)"') { throw "no version in Cargo.toml" }
+          "VERSION=$($Matches[1])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$($Matches[1])") {
+            throw "the tag $env:GITHUB_REF_NAME does not match the version $($Matches[1]) in Cargo.toml"
+          }
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build the program
+        shell: pwsh
+        run: |
+          $env:CHIMERA_BUILD = (git rev-list --count HEAD)
+          cargo build --release -p chimerairc
+          New-Item -ItemType Directory -Force unsigned-exe | Out-Null
+          Copy-Item target\release\chimerairc.exe unsigned-exe\chimerairc.exe
+
+      - name: Upload the program for signing
+        id: upload-exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exe
+          path: unsigned-exe
+
+      - name: Sign the program (SignPath)
+        if: env.SIGNPATH_ORG != '' && env.HAS_SIGNPATH_TOKEN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG }}
+          project-slug: ${{ env.SIGNPATH_PROJECT }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 86400   # a person approves the request
+          output-artifact-directory: signed-exe
+
+      - name: Which program goes into the packages
+        shell: pwsh
+        run: |
+          $exe = if (Test-Path signed-exe\chimerairc.exe) { "signed-exe\chimerairc.exe" } else { "unsigned-exe\chimerairc.exe" }
+          "EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add --global WixToolset.UI.wixext/5.0.2
+
+      - name: Make the installer and the portable ZIP
+        shell: pwsh
+        run: .\packaging\build-installer.ps1 -ExePath $env:EXE
+
+      - name: Upload the installer for signing
+        id: upload-msi
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-msi
+          path: dist/ChimeraIRC-${{ env.VERSION }}-x64.msi
+
+      - name: Sign the installer (SignPath)
+        if: env.SIGNPATH_ORG != '' && env.HAS_SIGNPATH_TOKEN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORG }}
+          project-slug: ${{ env.SIGNPATH_PROJECT }}
+          signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+          artifact-configuration-slug: msi
+          github-artifact-id: ${{ steps.upload-msi.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 86400
+          output-artifact-directory: signed-msi
+
+      - name: Collect the files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          $msi = if (Test-Path "signed-msi\ChimeraIRC-$env:VERSION-x64.msi") { "signed-msi\ChimeraIRC-$env:VERSION-x64.msi" } else { "dist\ChimeraIRC-$env:VERSION-x64.msi" }
+          Copy-Item $msi release\
+          Copy-Item "dist\ChimeraIRC-$env:VERSION-x64-portable.zip" release\
+          Get-ChildItem release -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content release\SHA256SUMS.txt
+          Get-Content release\SHA256SUMS.txt
+          Get-AuthenticodeSignature release\*.msi, $env:EXE | Format-Table Path, Status, @{n='Signer'; e={$_.SignerCertificate.Subject}} -AutoSize -Wrap
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: release
+
+      - name: Publish the release
+        if: github.ref_type == 'tag' && (github.event_name == 'push' || inputs.publish)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $files = Get-ChildItem release -File | ForEach-Object { $_.FullName }
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME @files --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME @files --title "ChimeraIRC $env:VERSION" --prerelease --generate-notes
+          }

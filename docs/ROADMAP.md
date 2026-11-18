@@ -49,7 +49,7 @@ Where the project is and where it is going. These are plans and ideas, not promi
 
 | Item | Notes |
 |---|---|
-| **Code signing** | Windows SmartScreen warns about unsigned downloads. Likely through SignPath (free for open source) or Microsoft's cloud signing. |
+| **Code signing** | Windows SmartScreen warns about unsigned downloads. The release build on GitHub is ready for SignPath's free open-source signing; the application and set-up are next (see [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)). |
 
 ## 💡 Ideas
 
