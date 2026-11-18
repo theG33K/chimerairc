@@ -38,7 +38,6 @@ pub const ID_APP_EXIT: usize = 103;
 pub const ID_FILE_CONNECT: usize = 104;
 pub const ID_CHANNEL_JOIN: usize = 105;
 pub const ID_CHANNEL_LIST: usize = 106;
-const ID_FILE_IMPORT: usize = 109;
 const ID_FILE_DCC: usize = 160; // (110-113 are the Edit menu)
 const ID_FAV_ADD: usize = 107;
 const ID_FAV_ORGANIZE: usize = 108;
@@ -542,7 +541,6 @@ unsafe fn build_menu() -> windows::core::Result<HMENU> {
     add(file, ID_FILE_DISCONNECT, w!("&Disconnect\tCtrl+D"));
     sep(file);
     add(file, ID_FILE_DCC, w!("DCC T&ransfers...\tCtrl+T"));
-    add(file, ID_FILE_IMPORT, w!("&Import from HydraIRC..."));
     sep(file);
     add(file, ID_APP_EXIT, w!("E&xit\tCtrl+Q"));
     pop(bar, file, w!("&File"));
@@ -1246,7 +1244,6 @@ unsafe fn on_command(hwnd: HWND, id: usize) -> bool {
         return true;
     }
     match id {
-        ID_FILE_IMPORT => app::import_hydrairc_command(),
         ID_FILE_DCC => app::open_transfers_window(),
         ID_FAV_ADD => app::add_to_favorites(),
         ID_FAV_ORGANIZE => app::organize_favorites(),

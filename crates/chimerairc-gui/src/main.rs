@@ -23,7 +23,6 @@ mod favorites;
 mod chanwin;
 mod highlight;
 mod history;
-mod hydra_import;
 #[cfg(windows)]
 mod igndialog;
 mod ignorelist;
@@ -65,7 +64,7 @@ fn run() -> windows::core::Result<()> {
     use windows::Win32::Graphics::Gdi::UpdateWindow;
     use windows::Win32::UI::WindowsAndMessaging::*;
 
-    // COM is needed for the standard folder-picker dialog (Import from HydraIRC).
+    // COM is needed for the standard open / save file dialogs.
     unsafe {
         let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_APARTMENTTHREADED);
     }

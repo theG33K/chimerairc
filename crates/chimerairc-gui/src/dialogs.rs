@@ -274,26 +274,6 @@ pub fn info(owner: HWND, title: &str, text: &str) {
     }
 }
 
-/// The standard Windows "pick a folder" dialog. `None` if cancelled or unavailable.
-/// Needs COM to be initialised on this thread (done at startup).
-pub fn pick_folder(owner: HWND, title: &str) -> Option<std::path::PathBuf> {
-    use windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_INPROC_SERVER};
-    use windows::Win32::UI::Shell::{FileOpenDialog, IFileOpenDialog, FOS_FORCEFILESYSTEM, FOS_PICKFOLDERS, SIGDN_FILESYSPATH};
-    unsafe {
-        let dlg: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER).ok()?;
-        let opts = dlg.GetOptions().ok()?;
-        dlg.SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM).ok()?;
-        let t = wide(title);
-        dlg.SetTitle(PCWSTR(t.as_ptr())).ok()?;
-        dlg.Show(owner).ok()?; // Err(HRESULT_FROM_WIN32(ERROR_CANCELLED)) when the user cancels
-        let item = dlg.GetResult().ok()?;
-        let name = item.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
-        let path = name.to_string().ok();
-        CoTaskMemFree(Some(name.0 as *const c_void));
-        path.map(std::path::PathBuf::from)
-    }
-}
-
 /// The standard "open a file" dialog. `None` if cancelled or unavailable.
 pub fn pick_open_file(owner: HWND, title: &str) -> Option<std::path::PathBuf> {
     use windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_INPROC_SERVER};

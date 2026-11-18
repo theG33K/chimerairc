@@ -36,7 +36,7 @@ Where the project is and where it is going. These are plans and ideas, not promi
 - Buddy list with groups, ignore list, favorites with auto-join
 - Identities per network (nick, alternates, user name, real name, SASL account), auto-perform scripts
 - DCC files and chats with resume, passive mode, IPv6, turbo, TLS, and UPnP / NAT-PMP / PCP port mapping
-- Import of HydraIRC settings; automatic pick-up of winIRC settings
+- Automatic pick-up of winIRC settings
 
 **Packaging**
 - Per-user MSI installer that upgrades in place, and a portable ZIP
@@ -48,7 +48,6 @@ Where the project is and where it is going. These are plans and ideas, not promi
 | Item | Notes |
 |---|---|
 | **Code signing** | Windows SmartScreen warns about unsigned downloads. Likely through SignPath (free for open source) or Microsoft's cloud signing. |
-| **More HydraIRC import** | Command profiles, color schemes and sounds. |
 
 ## 💡 Ideas
 

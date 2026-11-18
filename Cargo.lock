@@ -107,7 +107,6 @@ dependencies = [
  "chimerairc-proto",
  "embed-resource",
  "regex",
- "roxmltree",
  "tokio",
  "windows",
 ]

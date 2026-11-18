@@ -176,8 +176,8 @@ To make the installer and the portable ZIP (into `dist\`), see [`packaging/READM
 
 ## 🧭 Roadmap
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what works today and what comes next (code signing, update checks, more
-HydraIRC import, and ideas such as a Linux version).
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what works today and what comes next (code signing, a sound picker, and
+ideas such as a Linux version).
 
 ## 📜 License
 

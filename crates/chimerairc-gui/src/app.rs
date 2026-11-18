@@ -15,7 +15,6 @@ use crate::urls;
 use crate::dccrules;
 use crate::favdialog;
 use crate::favorites;
-use crate::hydra_import;
 use crate::igndialog;
 use crate::ignorelist;
 use crate::chanwin;
@@ -2279,155 +2278,6 @@ pub fn ignore_dialog() {
     }
 }
 
-// ------------------------------------------------------------------ HydraIRC import
-
-/// Menu command: pick HydraIRC's folder (the one containing `HydraIRC.xml`) and import from it.
-pub fn import_hydrairc_command() {
-    if let Some(dir) = dialogs::pick_folder(ui::frame(), "Select the HydraIRC folder (the one containing HydraIRC.xml)") {
-        import_hydrairc(&dir);
-    }
-}
-
-/// Read a HydraIRC folder, let the user choose what to bring over, merge it into the settings
-/// and report exactly what was and was not imported.
-pub fn import_hydrairc(dir: &Path) {
-    let owner = ui::frame();
-    let files = match hydra_import::load_dir(dir) {
-        Ok(f) => f,
-        Err(e) => {
-            dialogs::message(owner, "Import from HydraIRC", &format!("Could not read {}:\n{e}", dir.display()));
-            return;
-        }
-    };
-    if files.main.is_none() && files.profiles.is_empty() {
-        dialogs::message(
-            owner,
-            "Import from HydraIRC",
-            &format!(
-                "No HydraIRC.xml or Profile_*.xml found in\n{}\n\nChoose the folder HydraIRC is installed in.",
-                dir.display()
-            ),
-        );
-        return;
-    }
-    let mut parsed = hydra_import::parse(files.main.as_deref(), &files.profiles);
-    parsed.warnings.extend(files.warnings);
-
-    let skipped = skipped_summary(&parsed);
-    if parsed.is_empty() {
-        let mut msg = String::from("There is nothing ChimeraIRC can import from this HydraIRC folder.");
-        if !skipped.is_empty() {
-            msg.push_str(&format!("\n\nFound but not importable: {skipped}."));
-        }
-        for w in &parsed.warnings {
-            msg.push_str(&format!("\n{w}"));
-        }
-        dialogs::info(owner, "Import from HydraIRC", &msg);
-        return;
-    }
-
-    let (servers, channels, words) = (parsed.favorites.servers.len(), parsed.channel_count(), parsed.highlights.len());
-    let identity_label = match &parsed.identity {
-        Some(i) => format!("Identity: nick {}, user {}", i.nick, i.user),
-        None => "Identity: none found".to_owned(),
-    };
-    let ignores = parsed.ignores.len();
-    let fields = [
-        dialogs::Field::wide_check(&format!("Favorites: {servers} servers, {channels} channels"), servers > 0),
-        dialogs::Field::wide_check(&format!("Highlight words: {words}"), words > 0),
-        dialogs::Field::wide_check(&format!("Ignore list: {ignores} entries"), ignores > 0),
-        dialogs::Field::wide_check(&identity_label, parsed.identity.is_some()),
-        dialogs::Field::wide_check("Move plain port 6667 servers to TLS on 6697", true),
-    ];
-    let Some(v) = dialogs::show(owner, "Import from HydraIRC", &fields) else { return };
-    let (want_favs, want_words, want_ignores, want_identity, want_tls) =
-        (v[0] == "1", v[1] == "1", v[2] == "1", v[3] == "1", v[4] == "1");
-    if !(want_favs || want_words || want_ignores || want_identity) {
-        return;
-    }
-    if want_tls {
-        parsed.upgrade_plain_to_tls();
-    }
-
-    let mut lines = Vec::new();
-    with(|a| {
-        let st = &mut a.settings;
-        if want_favs {
-            let (s, c) = hydra_import::merge_favorites(&mut st.favorites, &parsed.favorites);
-            lines.push(format!("Favorites: {s} new server(s), {c} new channel(s)"));
-        }
-        if want_words {
-            let added = hydra_import::merge_highlights(&mut st.highlights, &parsed.highlights);
-            let present = parsed.highlights.len() - added;
-            lines.push(if present > 0 {
-                format!("Highlight words: {added} new ({present} already present)")
-            } else {
-                format!("Highlight words: {added} new")
-            });
-        }
-        if want_ignores {
-            let added = hydra_import::merge_ignores(&mut st.ignores, &parsed.ignores);
-            let present = parsed.ignores.len() - added;
-            lines.push(if present > 0 {
-                format!("Ignore list: {added} new ({present} already present)")
-            } else {
-                format!("Ignore list: {added} new")
-            });
-        }
-        if want_identity {
-            if let Some(i) = &parsed.identity {
-                st.nick = i.nick.clone();
-                st.user = i.user.clone();
-                if !i.realname.is_empty() {
-                    st.realname = i.realname.clone();
-                }
-                lines.push(format!("Identity: nick is now {}", i.nick));
-            }
-        }
-        st.save();
-    });
-    sync_favorites();
-    if want_ignores {
-        push_ignores();
-    }
-
-    let mut msg = format!("Imported from HydraIRC (profile: {}).\n\n", parsed.profiles.join(", "));
-    for l in &lines {
-        msg.push_str(&format!("\u{2022} {l}\n"));
-    }
-    if !skipped.is_empty() {
-        msg.push_str(&format!("\nNot imported (no ChimeraIRC equivalent): {skipped}."));
-    }
-    if want_ignores && parsed.ignores_widened > 0 {
-        msg.push_str(&format!(
-            "\n{} ignore entr(y/ies) were limited to one HydraIRC network; they now apply on every server.",
-            parsed.ignores_widened
-        ));
-    }
-    msg.push_str("\nPasswords are never imported.");
-    for w in &parsed.warnings {
-        msg.push_str(&format!("\n{w}"));
-    }
-    dialogs::info(owner, "Import from HydraIRC", &msg);
-}
-
-/// "3 query favorites, 24 buddies, ..." for whatever was found but cannot be imported.
-fn skipped_summary(p: &hydra_import::Parsed) -> String {
-    let mut parts = Vec::new();
-    let mut add = |n: usize, what: &str| {
-        if n > 0 {
-            parts.push(format!("{n} {what}"));
-        }
-    };
-    add(p.queries_skipped, "query favorite(s)");
-    add(p.invalid_favorites, "unusable favorite(s)");
-    add(p.regex_skipped, "regular-expression highlight(s)");
-    add(p.buddies, "buddy entr(y/ies)");
-    add(p.ignores_skipped, "ignore entr(y/ies) that never ignored anything");
-    add(p.command_profiles, "command profile(s)");
-    parts.join(", ")
-}
-
 pub fn organize_favorites() {
     let current = settings().favorites;
     if let Some(new) = favdialog::show(ui::frame(), &current) {
@@ -3281,13 +3131,6 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
                 local(h, "* This server does not let you change your real name while connected.");
             } else {
                 send(conn, Message::new("SETNAME", &[rest]));
-            }
-        }
-        "importhydra" => {
-            if rest.is_empty() {
-                local(h, "* Usage: /importhydra <folder containing HydraIRC.xml>");
-            } else {
-                import_hydrairc(Path::new(rest));
             }
         }
         "list" => {
