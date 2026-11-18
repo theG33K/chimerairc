@@ -28,8 +28,10 @@ Where the project is and where it is going. These are plans and ideas, not promi
 - Tab completion, highlights, clickable links with a "where does this really go" hint, double-click a channel or nick
 - Find in window, log search, multi-line paste protection, paste a picture or drop a file to send it over DCC
 - Highlights with regular expressions, limited to chosen channels, each with its own color and sound
+- Lua scripting: react to messages, joins and connections, add your own `/commands`, use timers (chat only: no files or
+  network; see [SCRIPTING.md](SCRIPTING.md))
 - Notification sounds per event (highlight, private message, DCC offer, finished transfer, connect, disconnect): a Windows
-  sound or your own `.wav` file
+  sound or your own `.wav` file, with a file picker and a Play button to try it
 - Aliases, `/uptime`, `/say`, away and back, and services messages kept out of the way (logins are masked)
 
 **People and setup**
@@ -55,7 +57,6 @@ Where the project is and where it is going. These are plans and ideas, not promi
   code; a new front end would sit on top of them.
 - 32-bit Windows and ARM64 builds
 - More IRCv3: `labeled-response`, `invite-notify`, message replies and reactions
-- A small scripting or plugin system beyond aliases
 - A built-in `identd` server
 
 ## ❌ Deliberately not done

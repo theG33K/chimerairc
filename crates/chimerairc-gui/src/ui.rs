@@ -69,6 +69,7 @@ const ID_OPT_TYPING_SEND: usize = 177;
 const TYPING_TIMER: usize = 0x7701;
 /// Pasted lines go out one per tick.
 const PASTE_TIMER: usize = 0x7702;
+const SCRIPT_TIMER: usize = 0x7703;
 const ID_OPT_OPENLOGS: usize = 155;
 const ID_OPT_OPENLOG: usize = 156;
 const ID_VIEW_TOOLBAR: usize = 121;
@@ -139,6 +140,8 @@ const ID_HELP_ABOUT: usize = 140;
 const ID_HELP_UPDATES: usize = 141;
 const ID_OPT_UPDATE_START: usize = 180;
 const ID_OPT_SOUNDS: usize = 181;
+const ID_OPT_SCRIPTS_RELOAD: usize = 182;
+const ID_OPT_SCRIPTS_FOLDER: usize = 183;
 
 static FRAME: AtomicIsize = AtomicIsize::new(0);
 static MDI: AtomicIsize = AtomicIsize::new(0);
@@ -608,6 +611,8 @@ unsafe fn build_menu() -> windows::core::Result<HMENU> {
     add(opts, ID_OPT_PREFS, w!("&Preferences...\tCtrl+P"));
     add(opts, ID_OPT_HIGHLIGHTS, w!("&Highlights..."));
     add(opts, ID_OPT_SOUNDS, w!("&Sounds..."));
+    add(opts, ID_OPT_SCRIPTS_RELOAD, w!("Re&load Scripts"));
+    add(opts, ID_OPT_SCRIPTS_FOLDER, w!("Open Scripts F&older"));
     add(opts, ID_OPT_IGNORES, w!("&Ignore List..."));
     add(opts, ID_OPT_PERFORM, w!("Auto-&Perform..."));
     add(opts, ID_OPT_IDENTITIES, w!("I&dentities..."));
@@ -1256,6 +1261,8 @@ unsafe fn on_command(hwnd: HWND, id: usize) -> bool {
         ID_OPT_PREFS => app::prefs_dialog(),
         ID_OPT_HIGHLIGHTS => app::highlights_dialog(),
         ID_OPT_SOUNDS => app::sounds_dialog(),
+        ID_OPT_SCRIPTS_RELOAD => app::scripts_reload_command(),
+        ID_OPT_SCRIPTS_FOLDER => app::scripts_open_folder(),
         ID_OPT_IGNORES => app::ignore_dialog(),
         ID_OPT_PERFORM => app::perform_dialog(None),
         ID_OPT_IDENTITIES => app::identity_dialog(None),
@@ -1354,10 +1361,15 @@ extern "system" fn frame_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> L
                 create_frame_children(hwnd);
                 SetTimer(hwnd, TYPING_TIMER, 1000, None);
                 SetTimer(hwnd, PASTE_TIMER, 700, None);
+                SetTimer(hwnd, SCRIPT_TIMER, 500, None);
                 LRESULT(0)
             }
             WM_TIMER if wp.0 == PASTE_TIMER => {
                 app::paste_tick();
+                LRESULT(0)
+            }
+            WM_TIMER if wp.0 == SCRIPT_TIMER => {
+                app::scripts_tick();
                 LRESULT(0)
             }
             WM_TIMER if wp.0 == TYPING_TIMER => {

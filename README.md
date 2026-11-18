@@ -28,7 +28,7 @@
 ChimeraIRC keeps what made [HydraIRC](https://en.wikipedia.org/wiki/HydraIRC) pleasant — MDI chat windows, panes docked
 around the edges, a classic menu and toolbar — and rebuilds it as a small, native, memory-safe Win32 program with
 current standards: TLS by default, SASL, and the IRCv3 extensions that make IRC feel modern. No runtime, no web view,
-one `.exe` of about 6 MB.
+one `.exe` of about 7 MB.
 
 ## 🚀 Features
 
@@ -41,7 +41,7 @@ one `.exe` of about 6 MB.
 | 💬 **Chat comforts** | Tab completion, highlights, clickable links (with a "where does this really go" hint), double-click a `#channel` or nick, find in window, log search, multi-line paste protection. |
 | 📁 **DCC** | Send and receive files and chats: resume, passive, IPv6, turbo, TLS; UPnP / NAT-PMP / PCP port mapping; drag a file onto a chat to send it. |
 | 👥 **People** | Buddy list with groups, ignore list, away marks in the nick list, a global user list. |
-| 🧰 **Make it yours** | Identities per network, auto-perform scripts, your own aliases, favorites with auto-join. |
+| 🧰 **Make it yours** | Identities per network, auto-perform scripts, your own aliases, favorites with auto-join, and [Lua scripts](docs/SCRIPTING.md) that answer messages, add commands and run timers (chat only: no files or network). |
 | 📦 **Easy to install** | A per-user MSI (no administrator rights) or a portable ZIP. **Help → Check for Updates…** tells you when a newer release is out. |
 
 ## 📥 Install
@@ -84,6 +84,7 @@ full list, and press <kbd>Tab</kbd> to complete commands, `#channels` and nicks.
 | `/history [n]`, `/history before\|after\|around\|between …` | Fetch chat history from servers that have it. |
 | `/dcc send <nick> [file]`, `/dcc chat <nick>` | File transfers and direct chats. |
 | `/find <text>`, `/logsearch <text>` | Search the window; search your saved logs. |
+| `/script [reload\|unload name\|folder]` | List, reload or stop Lua scripts; scripts can add commands of their own. |
 | `/sound [event sound]` | List the event sounds, try one (`/sound message`) or set one (`/sound private mail`). |
 | `/alias [name text]`, `/uptime`, `/identity`, `/perform` | Your own commands, uptime, identities, connect scripts. |
 | `/quit [reason]`, `/clear`, `/close`, `/raw <line>` | Leave, tidy up, or send a raw IRC line. |
@@ -111,6 +112,7 @@ Almost everything is set from the **Options** menu; the program saves it for you
 | **Options → Chat Colors…** | Colors of the chat text, and of owners, admins, ops, half-ops and voiced people in the nick list. |
 | **Options → Highlights…** | Words or regular expressions that light up a message: choose the color, limit a rule to some channels (`#rust #py* !#offtopic`, or `query` for private chats) and give it its own sound. |
 | **Options → Sounds…** | A sound for each event: highlight, private message, DCC offer, finished transfer, connected, disconnected. Pick a Windows sound or your own `.wav` file; sounds can be limited to when the program is in the background. |
+| **Options → Reload Scripts**, **Open Scripts Folder** | Lua scripts are `.lua` files in `%AppData%\ChimeraIRC\scripts`; see [docs/SCRIPTING.md](docs/SCRIPTING.md). |
 | **Options → Ignore List…** | People to hide. |
 | **Options → Show Typing Indicators / Send Typing Notices** | See who is typing; choose whether to tell others you are. |
 | **Options → Check for Updates at Start** | Off by default. When on, ChimeraIRC looks for a newer release on GitHub at start-up (at most once a day) and says so in the status window. **Help → Check for Updates…** does it on request. |
@@ -173,11 +175,12 @@ To make the installer and the portable ZIP (into `dist\`), see [`packaging/READM
 | `crates/chimerairc-gui` | The native Win32 program (`chimerairc.exe`). |
 | `packaging/` | Installer (WiX), portable ZIP and icon scripts. |
 | `docs/ROADMAP.md` | What works today, what comes next, and ideas. |
+| `docs/SCRIPTING.md` | Writing Lua scripts. |
 
 ## 🧭 Roadmap
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what works today and what comes next (code signing, a sound picker, and
-ideas such as a Linux version).
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what works today and what comes next (code signing, and ideas such as
+a Linux version).
 
 ## 📜 License
 

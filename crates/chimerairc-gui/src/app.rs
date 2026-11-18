@@ -100,6 +100,7 @@ struct App {
 }
 
 mod dcc;
+mod scripts;
 
 static QUEUE: Mutex<VecDeque<(u32, Event)>> = Mutex::new(VecDeque::new());
 /// Reconnect timers that have run out: (connection id, retry generation).
@@ -600,6 +601,24 @@ pub fn toggle_update_check() {
 }
 
 /// At start-up: when the user has switched the check on and a day has passed, look quietly.
+pub fn scripts_start() {
+    scripts::start();
+}
+
+pub fn scripts_tick() {
+    scripts::tick();
+}
+
+pub fn scripts_reload_command() {
+    if let Some(h) = ui::active_child() {
+        scripts::reload(raw(h));
+    }
+}
+
+pub fn scripts_open_folder() {
+    scripts::open_folder();
+}
+
 pub fn update_check_on_start() {
     let due = with(|a| {
         let now = unix_now();
@@ -2760,11 +2779,11 @@ pub fn sounds_dialog() {
     loop {
         let names: Vec<&str> = sounds::NAMES.iter().map(|(n, _)| *n).collect();
         let mut fields = vec![Field::note(&format!(
-            "Highlight is a message that mentions your nick or matches a highlight rule. For each event write off, one of the Windows sounds ({}), or the path of a .wav file such as C:\\Sounds\\ping.wav. Try one with /sound <name or file>.",
+            "Highlight is a message that mentions your nick or matches a highlight rule. For each event write off, one of the Windows sounds ({}), or the path of a .wav file such as C:\\Sounds\\ping.wav. Use ... to choose a file and Play to hear it.",
             names.join(", ")
         ))];
         for (e, v) in EVENTS.iter().zip(&values) {
-            fields.push(Field::text(e.label, v));
+            fields.push(Field::sound(e.label, v));
         }
         fields.push(Field::wide_check("Only play sounds while ChimeraIRC is in the background", background));
         let Some(v) = dialogs::show(ui::frame(), "Sounds", &fields) else { return };
@@ -2881,6 +2900,9 @@ pub fn toggle_timestamps() {
 
 pub fn submit(h: HWND, text: String) {
     let Some((kind, conn, name)) = ui::child(h).map(|c| (c.kind, c.conn, c.name.clone())) else { return };
+    if scripts::input(h, kind, conn, &name, &text) {
+        return;
+    }
     if let Some(cmd) = text.strip_prefix('/') {
         if !cmd.starts_with('/') {
             command(h, kind, conn, &name, cmd);
@@ -2991,6 +3013,7 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
                 "  /perform [list]  /perform edit [network]  /perform run   commands that run when a network connects",
                 "  /history [lines]    /history before|after [point] [lines]    /history around <point>    /history between <point> <point>   chat history from the server (when it has it)",
                 "  Pasting several lines asks first (and sends them about one a second; /stoppaste stops it). Drop a file on a private chat, or on a name in the user list, to send it by DCC.",
+                "  /script   list the Lua scripts (/script reload, /script unload <name>, /script folder)   scripts can add commands of their own",
                 "  /sound   the sounds for events (/sound <name or file> tries one, /sound <event> <sound> sets one; also Options > Sounds)",
                 "  /alias name text   make your own command (/alias lists them, /alias -d name removes)    /uptime   how long the program and this connection have been up",
                 "  /find <text>   find in this window (F3 next, Shift+F3 previous)    /logsearch <text>   search the saved logs    /identity   nickname, real name and SASL account per network",
@@ -3089,6 +3112,7 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
         }
         "alias" => alias_command(h, rest),
         "sound" | "sounds" => sound_command(h, rest),
+        "script" | "scripts" => scripts::command_script(h, rest),
         "stoppaste" => stop_paste(h),
         "say" => {
             if rest.is_empty() {
@@ -3393,7 +3417,9 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
         },
         _ => {
             if !run_alias(h, &verb, rest) {
-                local(h, &format!("* Unknown command /{verb}. Try /help."));
+                if !scripts::command(h, kind, conn, name, &verb, rest) {
+                    local(h, &format!("* Unknown command /{verb}. Try /help."));
+                }
             }
         }
     }
@@ -3605,6 +3631,7 @@ fn on_event(conn: u32, ev: Event) {
         Event::Connected => server_print(conn, "* Connected. Registering..."),
         Event::Registered { nick } => {
             play_sound("connected", "");
+            scripts::event(conn, None, "", "connect", &[("nick", nick.as_str().into())]);
             with(|a| {
                 if let Some(c) = a.conns.get_mut(&conn) {
                     c.nick = nick.clone();
@@ -3728,6 +3755,7 @@ fn on_event(conn: u32, ev: Event) {
                     print_marked_at(h, lk, &line, &marks, stamp.as_deref());
                 }
             }
+            scripts::message(conn, &source.name, &target, &text, kind, from_me);
         }
         Event::StsPolicy { duration, port, .. } => on_sts_policy(conn, duration, port),
         Event::StsUpgrade { port } => {
@@ -3760,15 +3788,18 @@ fn on_event(conn: u32, ev: Event) {
                     }
                     print(h, &format!("* Now talking on {channel}"));
                 }
+                scripts::event(conn, window_for(conn, Kind::Channel, &channel, false), &channel, "join", &[("nick", me.as_str().into()), ("channel", channel.as_str().into()), ("mine", true.into())]);
             } else if let Some(h) = window_for(conn, Kind::Channel, &channel, false) {
                 // extended-join: who they are logged in as, and their real name
                 print(h, &format!("* {nick}{} has joined {channel}", join_details(account.as_deref(), realname.as_deref())));
+                scripts::event(conn, Some(h), &channel, "join", &[("nick", nick.as_str().into()), ("channel", channel.as_str().into()), ("mine", false.into())]);
             }
         }
         Event::Part { channel, nick, reason } => {
             if let Some(h) = window_for(conn, Kind::Channel, &channel, false) {
                 let r = reason.map(|r| format!(" ({r})")).unwrap_or_default();
                 print(h, &format!("* {nick} has left {channel}{r}"));
+                scripts::event(conn, Some(h), &channel, "part", &[("nick", nick.as_str().into()), ("channel", channel.as_str().into()), ("mine", eq_ic(&nick, &me).into())]);
             }
         }
         Event::Quit { nick, reason, channels } => {
@@ -3973,6 +4004,7 @@ fn on_event(conn: u32, ev: Event) {
             let was_registered = with(|a| a.conns.get(&conn).is_some_and(|c| c.registered));
             if was_registered {
                 play_sound("disconnected", "");
+                scripts::event(conn, None, "", "disconnect", &[]);
             }
             let channels = if was_registered { open_channels(conn) } else { Vec::new() };
             with(|a| {

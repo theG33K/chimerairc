@@ -23,6 +23,8 @@ pub enum FieldKind {
     Multiline,
     /// Explanatory text across the whole row; it has no value.
     Note,
+    /// A sound: a text box with Browse (a .wav file) and Play buttons beside it.
+    Sound,
 }
 
 impl FieldKind {
@@ -57,6 +59,9 @@ impl Field {
     pub fn note(text: &str) -> Field {
         Field { label: text.into(), kind: FieldKind::Note, value: String::new() }
     }
+    pub fn sound(label: &str, value: &str) -> Field {
+        Field { label: label.into(), kind: FieldKind::Sound, value: value.into() }
+    }
     pub fn wide_check(label: &str, on: bool) -> Field {
         Field { label: label.into(), kind: FieldKind::CheckWide, value: if on { "1" } else { "0" }.into() }
     }
@@ -71,6 +76,9 @@ struct State {
 
 pub(crate) const ID_OK: usize = 1;
 pub(crate) const ID_CANCEL: usize = 2;
+/// The Browse and Play buttons of a sound row are `ID_BROWSE + row` and `ID_PLAY + row`.
+const ID_BROWSE: usize = 1000;
+const ID_PLAY: usize = 2000;
 const CLASS: PCWSTR = w!("ChimeraIRC.Form");
 
 static REGISTERED: std::sync::Once = std::sync::Once::new();
@@ -103,6 +111,20 @@ extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT
                         s.done = true;
                     }
                     ID_CANCEL => (*st).done = true,
+                    id if (ID_BROWSE..ID_BROWSE + 500).contains(&id) => {
+                        if let Some(edit) = (&*st).controls.get(id - ID_BROWSE).copied() {
+                            browse_sound(hwnd, edit);
+                        }
+                    }
+                    id if (ID_PLAY..ID_PLAY + 500).contains(&id) => {
+                        if let Some(edit) = (&*st).controls.get(id - ID_PLAY).copied() {
+                            let text = read(edit, FieldKind::Text);
+                            match crate::sounds::check(&text) {
+                                Ok(_) => crate::sounds::play(&text),
+                                Err(e) => message(hwnd, "Sounds", &e),
+                            }
+                        }
+                    }
                     _ => {}
                 }
                 LRESULT(0)
@@ -117,6 +139,16 @@ extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT
             WM_CTLCOLORSTATIC | WM_CTLCOLORBTN | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX => crate::look::dialog_colors(msg, wp),
             _ => DefWindowProcW(hwnd, msg, wp, lp),
         }
+    }
+}
+
+/// Choose a .wav file for the sound box `edit`, starting where the box already points (or in Windows' own sounds).
+unsafe fn browse_sound(dlg: HWND, edit: HWND) {
+    let current = read(edit, FieldKind::Text);
+    let start = std::path::Path::new(current.trim().trim_matches('"')).parent().filter(|p| p.is_dir()).map(|p| p.to_path_buf());
+    if let Some(p) = pick_sound_file(dlg, "Choose a sound (.wav)", start.as_deref()) {
+        let w = wide(&p.to_string_lossy());
+        let _ = SetWindowTextW(edit, PCWSTR(w.as_ptr()));
     }
 }
 
@@ -137,7 +169,10 @@ pub fn show(owner: HWND, title: &str, fields: &[Field]) -> Option<Vec<String>> {
         });
 
         let (margin, label_w, ctrl_w, row_h, edit_h) = (px(14), px(120), px(250), px(30), px(24));
-        let client_w = margin * 2 + label_w + px(8) + ctrl_w;
+        // a sound row has two buttons after its box
+        let (browse_w, play_w) = (px(34), px(48));
+        let side = if fields.iter().any(|f| f.kind == FieldKind::Sound) { browse_w + play_w + px(8) } else { 0 };
+        let client_w = margin * 2 + label_w + px(8) + ctrl_w + side;
         let full_w = label_w + px(8) + ctrl_w;
         let multiline_h = px(150);
         let height_of = |k: FieldKind| match k {
@@ -191,6 +226,20 @@ pub fn show(owner: HWND, title: &str, fields: &[Field]) -> Option<Vec<String>> {
                         WS_EX_CLIENTEDGE,
                         margin, top + edit_h, full_w, multiline_h,
                     )
+                }
+                FieldKind::Sound => {
+                    mk(w!("STATIC"), &f.label, WINDOW_STYLE(0x200), WINDOW_EX_STYLE(0), margin, top, label_w, edit_h);
+                    let edit = mk(
+                        w!("EDIT"), &f.value, WS_TABSTOP | WINDOW_STYLE(ES_AUTOHSCROLL as u32), WS_EX_CLIENTEDGE,
+                        margin + label_w + px(8), top, ctrl_w, edit_h,
+                    );
+                    let bx = margin + label_w + px(8) + ctrl_w + px(4);
+                    let push = WS_TABSTOP | WINDOW_STYLE(BS_PUSHBUTTON as u32);
+                    let b = mk(w!("BUTTON"), "...", push, WINDOW_EX_STYLE(0), bx, top, browse_w, edit_h);
+                    SetWindowLongPtrW(b, GWLP_ID, (ID_BROWSE + i) as isize);
+                    let p = mk(w!("BUTTON"), "Play", push, WINDOW_EX_STYLE(0), bx + browse_w + px(4), top, play_w, edit_h);
+                    SetWindowLongPtrW(p, GWLP_ID, (ID_PLAY + i) as isize);
+                    edit
                 }
                 kind => {
                     mk(w!("STATIC"), &f.label, WINDOW_STYLE(0x200) /* SS_CENTERIMAGE */, WINDOW_EX_STYLE(0), margin, top, label_w, edit_h);
@@ -284,6 +333,35 @@ pub fn pick_open_file(owner: HWND, title: &str) -> Option<std::path::PathBuf> {
         dlg.SetOptions(opts | FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM).ok()?;
         let t = wide(title);
         dlg.SetTitle(PCWSTR(t.as_ptr())).ok()?;
+        dlg.Show(owner).ok()?;
+        let name = dlg.GetResult().ok()?.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
+        let path = name.to_string().ok();
+        CoTaskMemFree(Some(name.0 as *const c_void));
+        path.map(std::path::PathBuf::from)
+    }
+}
+
+/// The "open a file" dialog limited to .wav files, starting in `start` (or Windows' own sounds folder).
+pub fn pick_sound_file(owner: HWND, title: &str, start: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+    use windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_INPROC_SERVER};
+    use windows::Win32::UI::Shell::Common::COMDLG_FILTERSPEC;
+    use windows::Win32::UI::Shell::{FileOpenDialog, IFileOpenDialog, IShellItem, SHCreateItemFromParsingName, FOS_FILEMUSTEXIST, FOS_FORCEFILESYSTEM, SIGDN_FILESYSPATH};
+    unsafe {
+        let dlg: IFileOpenDialog = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER).ok()?;
+        let opts = dlg.GetOptions().ok()?;
+        dlg.SetOptions(opts | FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM).ok()?;
+        let t = wide(title);
+        dlg.SetTitle(PCWSTR(t.as_ptr())).ok()?;
+        let (name, spec) = (wide("Sounds (*.wav)"), wide("*.wav"));
+        let filters = [COMDLG_FILTERSPEC { pszName: PCWSTR(name.as_ptr()), pszSpec: PCWSTR(spec.as_ptr()) }];
+        dlg.SetFileTypes(&filters).ok()?;
+        let folder = start.map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|| {
+            format!("{}\\Media", std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into()))
+        });
+        let f = wide(&folder);
+        if let Ok(item) = SHCreateItemFromParsingName::<_, _, IShellItem>(PCWSTR(f.as_ptr()), None) {
+            let _ = dlg.SetFolder(&item);
+        }
         dlg.Show(owner).ok()?;
         let name = dlg.GetResult().ok()?.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
         let path = name.to_string().ok();

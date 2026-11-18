@@ -51,6 +51,7 @@ mod urls;
 mod perform;
 mod rowfilter;
 mod settings;
+mod script;
 mod sounds;
 mod theme;
 #[cfg(windows)]
@@ -84,6 +85,7 @@ fn run() -> windows::core::Result<()> {
     look::apply();
     app::update_check_on_start();
     app::new_server_window();
+    app::scripts_start();
     app::refresh_status();
 
     let mut msg = MSG::default();
