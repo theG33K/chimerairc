@@ -70,6 +70,7 @@ const TYPING_TIMER: usize = 0x7701;
 /// Pasted lines go out one per tick.
 const PASTE_TIMER: usize = 0x7702;
 const SCRIPT_TIMER: usize = 0x7703;
+const FLUSH_TIMER: usize = 0x7704;
 const ID_OPT_OPENLOGS: usize = 155;
 const ID_OPT_OPENLOG: usize = 156;
 const ID_VIEW_TOOLBAR: usize = 121;
@@ -274,6 +275,8 @@ pub enum Kind {
 
 pub struct Child {
     pub kind: Kind,
+    /// Lines that arrived while a menu was open: remembered, but not yet put in the text box (see `print`).
+    pub deferred: usize,
     pub conn: u32,
     /// DCC transfer id for a [`Kind::DccChat`] window (0 otherwise).
     pub dcc: u32,
@@ -1368,6 +1371,10 @@ extern "system" fn frame_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> L
                 app::paste_tick();
                 LRESULT(0)
             }
+            WM_TIMER if wp.0 == FLUSH_TIMER => {
+                flush_deferred();
+                LRESULT(0)
+            }
             WM_TIMER if wp.0 == SCRIPT_TIMER => {
                 app::scripts_tick();
                 LRESULT(0)
@@ -1519,6 +1526,7 @@ fn remember_child_place(hwnd: HWND) {
 pub fn create_child_ex(kind: Kind, conn: u32, name: &str, take_focus: bool) -> HWND {
     let previous = if take_focus { None } else { active_child() };
     let data = Box::into_raw(Box::new(Child {
+        deferred: 0,
         kind,
         conn,
         name: name.to_owned(),
@@ -2158,7 +2166,64 @@ pub fn print(h: HWND, ts: Option<&str>, text: &str, kind: LineKind, marks: &high
         c.activity = level;
         repaint_tabs();
     }
+    // While a menu is open the text box is left alone: changing it then makes Windows hide the mouse pointer.
+    // The line is kept and goes in when the menu closes (`flush_deferred`).
+    if in_menu_mode() {
+        c.deferred += 1;
+        unsafe {
+            SetTimer(frame(), FLUSH_TIMER, 150, None);
+        }
+        return;
+    }
     unsafe {
+        emit(edit, ts, text, base_fg, base_bold, marks);
+    }
+}
+
+/// Is a menu open (the menu bar or a pop-up) in this program?
+fn in_menu_mode() -> bool {
+    unsafe {
+        let mut info = GUITHREADINFO { cbSize: std::mem::size_of::<GUITHREADINFO>() as u32, ..Default::default() };
+        GetGUIThreadInfo(windows::Win32::System::Threading::GetCurrentThreadId(), &mut info).is_ok() && info.flags.0 & 0x4 != 0
+    }
+}
+
+/// Put the lines that came in while a menu was open into their text boxes.
+pub fn flush_deferred() {
+    if in_menu_mode() {
+        return;
+    }
+    let mut wins: Vec<HWND> = Vec::new();
+    unsafe {
+        if !mdi().0.is_null() {
+            let _ = EnumChildWindows(mdi(), Some(collect_children), LPARAM(&mut wins as *mut _ as isize));
+        }
+        for h in wins {
+            let Some(c) = child(h) else { continue };
+            if c.deferred == 0 {
+                continue;
+            }
+            let n = c.deferred.min(c.lines.len());
+            c.deferred = 0;
+            let skip = c.lines.len() - n;
+            let lines: Vec<StoredLine> = c.lines.iter().skip(skip).cloned().collect();
+            let edit = c.output;
+            for l in lines {
+                let (mut base_fg, mut base_bold) = l.kind.base();
+                if let Some(color) = l.marks.line {
+                    base_fg = Some(color);
+                    base_bold = true;
+                }
+                emit(edit, l.ts.as_deref(), &l.text, base_fg, base_bold, &l.marks);
+            }
+        }
+        let _ = KillTimer(frame(), FLUSH_TIMER);
+    }
+}
+
+/// Add one line to a text box, staying at the end only if the user was there and keeping their selection.
+unsafe fn emit(edit: HWND, ts: Option<&str>, text: &str, base_fg: Option<Rgb>, base_bold: bool, marks: &highlight::Marks) {
+    {
         let follow = at_bottom(edit);
         let first_line = send(edit, EM_GETFIRSTVISIBLELINE, 0, 0);
         let mut sel = CHARRANGE::default();
