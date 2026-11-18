@@ -1156,10 +1156,10 @@ pub fn set_theme(choice: crate::theme::Choice) {
 /// Options > Chat Colors: the colours of the chat text, as `#rrggbb` (empty keeps the theme's).
 pub fn colors_dialog() {
     use crate::theme::{self, Overrides, COLOR_NAMES};
-    let labels = ["Background", "Text", "Status lines (joins, modes)", "Actions (/me)", "Notices", "Errors", "Timestamps"];
+    let labels = ["Background", "Text", "Status lines (joins, modes)", "Actions (/me)", "Notices", "Errors", "Timestamps", "User list: channel owner (~)", "User list: admin (&)", "User list: operator (@)", "User list: half-operator (%)", "User list: voiced (+)"];
     let mut current = with(|a| a.settings.colors);
     loop {
-        let mut fields: Vec<Field> = vec![Field::note("Colors of the chat windows as #rrggbb (for example #1e1e1e). Leave a box empty to use the theme's own color. Colors that come with the text (mIRC colors) are made readable on the background you choose.")];
+        let mut fields: Vec<Field> = vec![Field::note("Colors of the chat windows and the user list as #rrggbb (for example #1e1e1e). Leave a box empty to use the theme's own color. Colors that come with the text (mIRC colors) are made readable on the background you choose.")];
         for (name, label) in COLOR_NAMES.iter().zip(labels) {
             fields.push(Field::text(label, &current.get(name).map(theme::hex).unwrap_or_default()));
         }
@@ -1167,7 +1167,7 @@ pub fn colors_dialog() {
         let Some(v) = dialogs::show(ui::frame(), "Chat Colors", &fields) else { return };
         let mut next = Overrides::default();
         let mut bad: Option<String> = None;
-        if v[8] != "1" {
+        if v[COLOR_NAMES.len() + 1] != "1" {
             for (i, name) in COLOR_NAMES.iter().enumerate() {
                 let text = v[i + 1].trim();
                 if text.is_empty() {

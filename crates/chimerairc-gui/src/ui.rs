@@ -1592,7 +1592,7 @@ unsafe fn build_controls(hwnd: HWND, c: &mut Child) {
         c.topic = make_edit(hwnd, WINDOW_STYLE((ES_AUTOHSCROLL | ES_READONLY) as u32), ui_font());
         c.list = CreateWindowExW(
             WS_EX_CLIENTEDGE, w!("LISTBOX"), PCWSTR::null(),
-            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WINDOW_STYLE((LBS_NOINTEGRALHEIGHT | LBS_NOTIFY) as u32),
+            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WINDOW_STYLE((LBS_NOINTEGRALHEIGHT | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS) as u32),
             0, 0, 0, 0, hwnd, None, hinst(), None,
         )
         .unwrap_or_default();
@@ -1601,6 +1601,42 @@ unsafe fn build_controls(hwnd: HWND, c: &mut Child) {
         windows::Win32::UI::Shell::DragAcceptFiles(c.list, true);
         let _ = SetWindowSubclass(c.list, Some(drop_proc), 2, raw(hwnd) as usize);
     }
+}
+
+/// Height of one line of the nick list: the interface font's height and a little air.
+unsafe fn user_row_height() -> i32 {
+    let dc = GetDC(None);
+    let old = SelectObject(dc, HGDIOBJ(ui_font_raw() as *mut c_void));
+    let mut tm = TEXTMETRICW::default();
+    let _ = GetTextMetricsW(dc, &mut tm);
+    SelectObject(dc, old);
+    ReleaseDC(None, dc);
+    tm.tmHeight + px(3)
+}
+
+/// One name of the nick list: its rank colour (the normal text colour for an ordinary member), and a soft bar
+/// behind the selected one.
+unsafe fn draw_user_row(c: &Child, dis: &DRAWITEMSTRUCT) {
+    if dis.itemID == u32::MAX {
+        return;
+    }
+    let Some((sym, nick)) = c.members.get(dis.itemID as usize) else { return };
+    let t = crate::look::theme();
+    let selected = dis.itemState.0 & ODS_SELECTED.0 != 0;
+    let bg = if selected { crate::theme::mix(t.bg, t.fg, 0.16) } else { t.bg };
+    let fg = t.rank_color(sym).unwrap_or(t.fg);
+    let brush = CreateSolidBrush(crate::look::colorref(bg));
+    FillRect(dis.hDC, &dis.rcItem, brush);
+    let _ = DeleteObject(HGDIOBJ(brush.0));
+    let text = crate::capsfmt::member_text(sym, nick, c.away.contains(&nick.to_lowercase()));
+    let mut w: Vec<u16> = text.encode_utf16().collect();
+    let old = SelectObject(dis.hDC, HGDIOBJ(ui_font_raw() as *mut c_void));
+    SetBkMode(dis.hDC, TRANSPARENT);
+    SetTextColor(dis.hDC, crate::look::colorref(fg));
+    let mut r = dis.rcItem;
+    r.left += px(4);
+    DrawTextW(dis.hDC, &mut w, &mut r, DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+    SelectObject(dis.hDC, old);
 }
 
 unsafe fn layout_child(hwnd: HWND) {
@@ -1620,6 +1656,7 @@ unsafe fn layout_child(hwnd: HWND) {
         let _ = ShowWindow(c.list, if show { SW_SHOW } else { SW_HIDE });
         let _ = MoveWindow(c.topic, 0, 0, w, th, true);
         let _ = MoveWindow(c.output, 0, th, w - lw, (h - th - in_h).max(0), true);
+        send(c.list, LB_SETITEMHEIGHT, 0, user_row_height() as isize);
         let _ = MoveWindow(c.list, w - lw, th, lw, (h - th - in_h).max(0), true);
     } else {
         let _ = MoveWindow(c.output, 0, 0, w, (h - in_h).max(0), true);
@@ -1755,6 +1792,25 @@ extern "system" fn child_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> L
                         }
                     }
                     return LRESULT(0);
+                }
+                DefMDIChildProcW(hwnd, msg, wp, lp)
+            }
+            // the nick list is drawn here: each name in the colour of its channel rank
+            WM_MEASUREITEM => {
+                let mis = &mut *(lp.0 as *mut MEASUREITEMSTRUCT);
+                if mis.CtlType == ODT_LISTBOX {
+                    mis.itemHeight = user_row_height() as u32;
+                    return LRESULT(1);
+                }
+                DefMDIChildProcW(hwnd, msg, wp, lp)
+            }
+            WM_DRAWITEM => {
+                let dis = &*(lp.0 as *const DRAWITEMSTRUCT);
+                if let Some(c) = child(hwnd) {
+                    if kind_is_channel(c) && dis.hwndItem == c.list {
+                        draw_user_row(c, dis);
+                        return LRESULT(1);
+                    }
                 }
                 DefMDIChildProcW(hwnd, msg, wp, lp)
             }

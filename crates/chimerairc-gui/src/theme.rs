@@ -53,6 +53,12 @@ pub struct Theme {
     pub timestamp: Rgb,
     /// Lines around tabs, boxes and panels.
     pub border: Rgb,
+    // nick list colours by channel rank
+    pub owner: Rgb,
+    pub admin: Rgb,
+    pub op: Rgb,
+    pub halfop: Rgb,
+    pub voice: Rgb,
 }
 
 /// Chat colours the user chose themselves; `None` keeps the theme's.
@@ -65,10 +71,15 @@ pub struct Overrides {
     pub notice: Option<Rgb>,
     pub error: Option<Rgb>,
     pub timestamp: Option<Rgb>,
+    pub owner: Option<Rgb>,
+    pub admin: Option<Rgb>,
+    pub op: Option<Rgb>,
+    pub halfop: Option<Rgb>,
+    pub voice: Option<Rgb>,
 }
 
 /// The names of the colours that can be overridden, as stored and as shown.
-pub const COLOR_NAMES: [&str; 7] = ["bg", "fg", "info", "action", "notice", "error", "timestamp"];
+pub const COLOR_NAMES: [&str; 12] = ["bg", "fg", "info", "action", "notice", "error", "timestamp", "owner", "admin", "op", "halfop", "voice"];
 
 impl Overrides {
     pub fn get(&self, name: &str) -> Option<Rgb> {
@@ -80,6 +91,11 @@ impl Overrides {
             "notice" => self.notice,
             "error" => self.error,
             "timestamp" => self.timestamp,
+            "owner" => self.owner,
+            "admin" => self.admin,
+            "op" => self.op,
+            "halfop" => self.halfop,
+            "voice" => self.voice,
             _ => None,
         }
     }
@@ -92,6 +108,11 @@ impl Overrides {
             "notice" => &mut self.notice,
             "error" => &mut self.error,
             "timestamp" => &mut self.timestamp,
+            "owner" => &mut self.owner,
+            "admin" => &mut self.admin,
+            "op" => &mut self.op,
+            "halfop" => &mut self.halfop,
+            "voice" => &mut self.voice,
             _ => return false,
         };
         *slot = c;
@@ -123,6 +144,11 @@ impl Theme {
         error: rgb(0xc0, 0x00, 0x00),
         timestamp: rgb(0x80, 0x80, 0x80),
         border: rgb(0xb4, 0xb4, 0xb4),
+        owner: rgb(0x7b, 0x1f, 0xa2),
+        admin: rgb(0xc6, 0x28, 0x28),
+        op: rgb(0x1b, 0x7f, 0x3b),
+        halfop: rgb(0xa8, 0x62, 0x00),
+        voice: rgb(0x15, 0x65, 0xc0),
     };
 
     pub const DARK: Theme = Theme {
@@ -139,6 +165,11 @@ impl Theme {
         error: rgb(0xff, 0x6b, 0x6b),
         timestamp: rgb(0x7c, 0x7c, 0x7c),
         border: rgb(0x48, 0x48, 0x48),
+        owner: rgb(0xc7, 0x92, 0xea),
+        admin: rgb(0xff, 0x6b, 0x6b),
+        op: rgb(0x6f, 0xd0, 0x8c),
+        halfop: rgb(0xe0, 0xa0, 0x5a),
+        voice: rgb(0x6c, 0xb2, 0xff),
     };
 
     /// The theme for a choice, with the user's own chat colours on top. `system_dark` says whether Windows is
@@ -157,11 +188,33 @@ impl Theme {
         t.notice = o.notice.unwrap_or(t.notice);
         t.error = o.error.unwrap_or(t.error);
         t.timestamp = o.timestamp.unwrap_or(t.timestamp);
+        t.owner = o.owner.unwrap_or(t.owner);
+        t.admin = o.admin.unwrap_or(t.admin);
+        t.op = o.op.unwrap_or(t.op);
+        t.halfop = o.halfop.unwrap_or(t.halfop);
+        t.voice = o.voice.unwrap_or(t.voice);
         // a chosen background and no chosen text colour must still be readable
         if o.bg.is_some() && o.fg.is_none() {
             t.fg = readable_on(t.fg, t.bg);
         }
+        // the rank colours must stay readable on whatever background is in use
+        for c in [&mut t.owner, &mut t.admin, &mut t.op, &mut t.halfop, &mut t.voice] {
+            *c = readable_on(*c, t.bg);
+        }
         t
+    }
+
+    /// The colour of a nick in the user list for its rank symbol (`~` owner, `&` admin, `@` op, `%` half-op,
+    /// `+` voice); `None` for an ordinary member, who gets the normal text colour.
+    pub fn rank_color(&self, sym: &str) -> Option<Rgb> {
+        match sym.chars().next()? {
+            '~' => Some(self.owner),
+            '&' => Some(self.admin),
+            '@' => Some(self.op),
+            '%' => Some(self.halfop),
+            '+' => Some(self.voice),
+            _ => None,
+        }
     }
 
     /// A colour that comes with the text (mIRC colours, highlight colours) made readable on this theme's
@@ -210,7 +263,7 @@ pub fn contrast(a: Rgb, b: Rgb) -> f64 {
     (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
 }
 
-fn mix(a: Rgb, b: Rgb, t: f64) -> Rgb {
+pub fn mix(a: Rgb, b: Rgb, t: f64) -> Rgb {
     let m = |x: u8, y: u8| (x as f64 + (y as f64 - x as f64) * t).round().clamp(0.0, 255.0) as u8;
     Rgb(m(a.0, b.0), m(a.1, b.1), m(a.2, b.2))
 }
@@ -283,6 +336,33 @@ fn clean_face(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ranks_have_their_own_readable_colours() {
+        for t in [Theme::LIGHT, Theme::DARK] {
+            let all: Vec<_> = ["~", "&", "@", "%", "+"].iter().map(|s| t.rank_color(s).unwrap()).collect();
+            for (i, a) in all.iter().enumerate() {
+                assert!(contrast(*a, t.bg) >= 4.5, "rank {i} unreadable");
+                for b in &all[i + 1..] {
+                    assert_ne!(a, b);
+                }
+            }
+            assert_eq!(t.rank_color(""), None);
+            assert_eq!(t.rank_color("x"), None);
+        }
+    }
+
+    #[test]
+    fn rank_colours_can_be_chosen_and_stay_readable() {
+        let mut o = Overrides::default();
+        assert!(o.set("op", Some(Rgb(1, 2, 3))));
+        let t = Theme::resolve(Choice::Light, false, &o);
+        assert_eq!(t.rank_color("@"), Some(Rgb(1, 2, 3)));
+        // a dark colour on a chosen dark background is lightened
+        o.bg = Some(Rgb(0, 0, 0));
+        let t = Theme::resolve(Choice::Light, false, &o);
+        assert!(contrast(t.rank_color("@").unwrap(), Rgb(0, 0, 0)) >= 4.5);
+    }
+
     use super::*;
 
     #[test]

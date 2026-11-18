@@ -107,6 +107,7 @@ Almost everything is set from the **Options** menu; the program saves it for you
 | **Options → Identities…** | A nickname, alternates, user name, real name and SASL account per network (the SASL password is asked at connect time). |
 | **Options → Auto-Perform…** | Commands that run when a network connects, e.g. `/msg NickServ identify {ask:Password}` — `{ask:…}` prompts you and never saves it. |
 | **Options → Aliases…** | Your own commands: `slap = /me slaps $1 around with a large trout`. |
+| **Options → Chat Colors…** | Colors of the chat text, and of owners, admins, ops, half-ops and voiced people in the nick list. |
 | **Options → Highlights…**, **Ignore List…** | Words that light up a window, and people to hide. |
 | **Options → Show Typing Indicators / Send Typing Notices** | See who is typing; choose whether to tell others you are. |
 | **Options → Check for Updates at Start** | Off by default. When on, ChimeraIRC looks for a newer release on GitHub at start-up (at most once a day) and says so in the status window. **Help → Check for Updates…** does it on request. |
