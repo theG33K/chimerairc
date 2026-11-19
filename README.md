@@ -181,4 +181,4 @@ a Linux version).
 
 ## 📜 License
 
-GPL-3.0-or-later
+GPL-3.0-or-later: see ["LICENSE.md'}(LICENSE.md)
