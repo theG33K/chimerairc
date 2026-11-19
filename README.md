@@ -181,5 +181,4 @@ a Linux version).
 
 ## 📜 License
 
-GPL-3.0-or-later, inherited from HydraIRC (see [`LICENSE`](LICENSE)). The original copyright remains with the
-HydraIRC authors.
+GPL-3.0-or-later
