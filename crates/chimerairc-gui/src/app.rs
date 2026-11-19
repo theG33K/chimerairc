@@ -86,6 +86,8 @@ struct Conn {
     /// A reconnect is in progress (waiting for a retry, or trying one).
     retrying: bool,
     backoff: Backoff,
+    /// Labeled replies, and the recent messages that can be answered or reacted to (see `ircv3.rs`).
+    v3: crate::ircv3::State,
     /// Bumped whenever the user connects or quits, so a retry timer that is already running is ignored.
     retry_gen: u32,
 }
@@ -101,6 +103,7 @@ struct App {
 
 mod dcc;
 mod scripts;
+mod v3;
 
 static QUEUE: Mutex<VecDeque<(u32, Event)>> = Mutex::new(VecDeque::new());
 /// Reconnect timers that have run out: (connection id, retry generation).
@@ -308,6 +311,7 @@ pub fn new_server_window() -> HWND {
                 ever_registered: false,
                 retrying: false,
                 backoff: Backoff::default(),
+                v3: crate::ircv3::State::default(),
                 retry_gen: 0,
             },
         );
@@ -3013,6 +3017,7 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
                 "  /perform [list]  /perform edit [network]  /perform run   commands that run when a network connects",
                 "  /history [lines]    /history before|after [point] [lines]    /history around <point>    /history between <point> <point>   chat history from the server (when it has it)",
                 "  Pasting several lines asks first (and sends them about one a second; /stoppaste stops it). Drop a file on a private chat, or on a name in the user list, to send it by DCC.",
+                "  /invite <nick> [#channel]    /reply <nick> <text>   answer that person's latest message    /react <nick> <emoji>   (/unreact takes it back)",
                 "  /script   list the Lua scripts (/script reload, /script unload <name>, /script folder)   scripts can add commands of their own",
                 "  /sound   the sounds for events (/sound <name or file> tries one, /sound <event> <sound> sets one; also Options > Sounds)",
                 "  /alias name text   make your own command (/alias lists them, /alias -d name removes)    /uptime   how long the program and this connection have been up",
@@ -3113,6 +3118,10 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
         "alias" => alias_command(h, rest),
         "sound" | "sounds" => sound_command(h, rest),
         "script" | "scripts" => scripts::command_script(h, rest),
+        "invite" => v3::invite_command(h, kind, conn, name, rest),
+        "reply" => v3::reply_command(h, rest),
+        "react" => v3::react_command(h, rest, false),
+        "unreact" => v3::react_command(h, rest, true),
         "stoppaste" => stop_paste(h),
         "say" => {
             if rest.is_empty() {
@@ -3293,7 +3302,7 @@ fn command(h: HWND, kind: Kind, conn: u32, name: &str, cmd: &str) {
             if rest.is_empty() {
                 local(h, "* Usage: /whois <nick>");
             } else {
-                send(conn, Message::new("WHOIS", &[rest]));
+                v3::send_from(h, conn, Message::new("WHOIS", &[rest]));
             }
         }
         "ns" | "nickserv" | "cs" | "chanserv" => {
@@ -3664,6 +3673,7 @@ fn on_event(conn: u32, ev: Event) {
                     c.setname = enabled.iter().any(|e| e == "setname");
                 }
             });
+            v3::caps(conn, &enabled);
             if !enabled.is_empty() {
                 server_print(conn, &format!("* Capabilities: {}", enabled.join(", ")));
             }
@@ -3671,7 +3681,10 @@ fn on_event(conn: u32, ev: Event) {
         Event::SaslResult { ok, text } => {
             server_print(conn, &format!("* SASL {}: {text}", if ok { "succeeded" } else { "failed" }));
         }
-        Event::Chat { source, target, text, kind, msgid, time } => {
+        Event::Label { label } => v3::label(conn, label),
+        Event::Invite { by, nick, channel } => v3::on_invite(conn, &me, &by, &nick, &channel),
+        Event::React { nick, target, msgid, emoji, remove } => v3::on_react(conn, &me, &nick, &target, &msgid, &emoji, remove),
+        Event::Chat { source, target, text, kind, msgid, time, reply_to } => {
             let stamp = time.as_deref().and_then(crate::util::server_time_stamp);
             if eq_ic(&source.name, &me) && is_secret_echo(conn, &target, &text) {
                 return;
@@ -3693,10 +3706,19 @@ fn on_event(conn: u32, ev: Event) {
                     }
                 }
             }
-            let line = match kind {
-                ChatKind::Message => format!("<{}> {}", source.name, text),
-                ChatKind::Action => format!("* {} {}", source.name, text),
-                ChatKind::Notice => format!("-{}- {}", source.name, text),
+            // remember it (so it can be replied to) and, for a reply, say what it answers
+            let reply_ctx = if kind == ChatKind::Notice {
+                None
+            } else {
+                let peer = if from_me { target.as_str() } else { source.name.as_str() };
+                v3::note_chat(conn, &v3::conversation_key(&target, peer), &source.name, &text, msgid.as_deref(), reply_to.as_deref())
+            };
+            let line = match (kind, &reply_ctx) {
+                (ChatKind::Message, Some(c)) => format!("<{}> {} {}", source.name, c, text),
+                (ChatKind::Action, Some(c)) => format!("* {} {} {}", source.name, c, text),
+                (ChatKind::Message, None) => format!("<{}> {}", source.name, text),
+                (ChatKind::Action, None) => format!("* {} {}", source.name, text),
+                (ChatKind::Notice, _) => format!("-{}- {}", source.name, text),
             };
             // what we said to a service reads as a command to it, not as chat: `-> *NickServ* help`
             let to_service = from_me && !is_channel(&target) && perform::looks_like_services(&target);
@@ -3755,7 +3777,7 @@ fn on_event(conn: u32, ev: Event) {
                     print_marked_at(h, lk, &line, &marks, stamp.as_deref());
                 }
             }
-            scripts::message(conn, &source.name, &target, &text, kind, from_me);
+            scripts::message(conn, &source.name, &target, &text, kind, from_me, msgid.as_deref(), reply_to.as_deref());
         }
         Event::StsPolicy { duration, port, .. } => on_sts_policy(conn, duration, port),
         Event::StsUpgrade { port } => {
@@ -3983,9 +4005,14 @@ fn on_event(conn: u32, ev: Event) {
                     ui::set_away(hw(h), &me, away);
                 }
             }
-            let line = params.join(" ");
+            // 341: the server confirms an invitation we sent
+            let line = if code == 341 && params.len() >= 2 { format!("* Invited {} to {}", params[0], params[1]) } else { params.join(" ") };
             if !line.is_empty() {
-                server_print(conn, &line);
+                // a server that labels its answers sends them back to the window the command was typed in
+                match v3::answer_window(conn) {
+                    Some(h) => print(h, &line),
+                    None => server_print(conn, &line),
+                }
             }
         }
         Event::Error { text } => {

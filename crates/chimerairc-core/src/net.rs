@@ -30,6 +30,9 @@ enum Cmd {
     Watch(Vec<String>),
     Send(Message),
     Typing(String, crate::event::TypingState),
+    Labeled(Message, String),
+    Reply { target: String, msgid: String, text: String },
+    React { target: String, msgid: String, emoji: String, remove: bool },
     Quit(Option<String>),
 }
 
@@ -83,6 +86,23 @@ impl Client {
     /// Tell a channel or nick whether we are typing (the +typing tag; nothing is sent unless the server allows it).
     pub fn typing(&self, target: &str, state: crate::event::TypingState) -> bool {
         self.tx.send(Cmd::Typing(target.to_owned(), state)).is_ok()
+    }
+
+    /// Queue a message with a `label` (`labeled-response`): the events that answer it come between
+    /// `Event::Label { label: Some(label) }` and `Event::Label { label: None }`.
+    pub fn send_labeled(&self, m: Message, label: &str) -> bool {
+        self.tx.send(Cmd::Labeled(m, label.to_owned())).is_ok()
+    }
+
+    /// Say `text` to `target` as a reply to the message `msgid` (an ordinary message where the server does not
+    /// carry reply tags).
+    pub fn reply(&self, target: &str, msgid: &str, text: &str) -> bool {
+        self.tx.send(Cmd::Reply { target: target.to_owned(), msgid: msgid.to_owned(), text: text.to_owned() }).is_ok()
+    }
+
+    /// React to the message `msgid` in `target` (or take the reaction back); sent only where the server carries the tags.
+    pub fn react(&self, target: &str, msgid: &str, emoji: &str, remove: bool) -> bool {
+        self.tx.send(Cmd::React { target: target.to_owned(), msgid: msgid.to_owned(), emoji: emoji.to_owned(), remove }).is_ok()
     }
 
     /// Send QUIT and close after the server hangs up (or a short grace period).
@@ -284,6 +304,20 @@ async fn run(
                     Some(Cmd::Send(m)) => write_msg(&mut wr, &m, ev_tx).await?,
                     Some(Cmd::Typing(target, state)) => {
                         session.typing(&target, state);
+                        pump(&mut session, &mut wr, ev_tx).await?;
+                    }
+                    Some(Cmd::Labeled(m, label)) => {
+                        session.send_labeled(m, &label);
+                        pump(&mut session, &mut wr, ev_tx).await?;
+                    }
+                    Some(Cmd::Reply { target, msgid, text }) => {
+                        session.send_reply(&target, &msgid, &text);
+                        pump(&mut session, &mut wr, ev_tx).await?;
+                    }
+                    Some(Cmd::React { target, msgid, emoji, remove }) => {
+                        if !session.send_react(&target, &msgid, &emoji, remove) {
+                            let _ = ev_tx.send(Event::Error { text: "The server does not allow reactions (or that is not a usable reaction).".into() });
+                        }
                         pump(&mut session, &mut wr, ev_tx).await?;
                     }
                     Some(Cmd::Quit(r)) => {

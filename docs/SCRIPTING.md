@@ -34,10 +34,12 @@ end)
 
 | Event | Fields of `e` |
 |---|---|
-| `message` | `nick`, `target`, `text`, `private` (a private chat), `action` (a `/me`), `mine` (you said it), `network` |
+| `message` | `nick`, `target`, `text`, `private` (a private chat), `action` (a `/me`), `mine` (you said it), `network`, `msgid` (the server's id for it, or empty), `reply_to` (the id of the message it answers, or empty) |
 | `notice` | the same as `message` |
 | `join` | `nick`, `channel`, `mine` |
 | `part` | `nick`, `channel`, `mine` |
+| `invite` | `nick` (who invited), `invitee`, `channel`, `mine` (you were invited) |
+| `react` | `nick`, `target`, `emoji`, `msgid` (the message reacted to), `remove` (the reaction was taken back), `mine` |
 | `connect` | `nick` |
 | `disconnect` | none |
 | `input` | the handler gets the typed line as text; **return `true`** to keep it from being sent or run |

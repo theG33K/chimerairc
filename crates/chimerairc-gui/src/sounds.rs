@@ -15,9 +15,10 @@ pub struct Event {
     pub default: &'static str,
 }
 
-pub const EVENTS: [Event; 6] = [
+pub const EVENTS: [Event; 7] = [
     Event { id: "highlight", label: "Highlight", default: "off" },
     Event { id: "private", label: "Private message", default: "off" },
+    Event { id: "invite", label: "Invitation", default: "off" },
     Event { id: "dcc_request", label: "DCC offer", default: "off" },
     Event { id: "dcc_done", label: "Transfer finished", default: "off" },
     Event { id: "connected", label: "Connected", default: "off" },

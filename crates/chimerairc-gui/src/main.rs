@@ -37,6 +37,7 @@ mod capsfmt;
 mod about;
 mod alias;
 mod identity;
+mod ircv3;
 mod linkinfo;
 mod paste;
 mod logsearch;

@@ -32,7 +32,7 @@ ChimeraIRC keeps what made IRC clients of days past pleasant — MDI chat window
 | | |
 |---|---|
 | 🔒 **Secure by default** | TLS everywhere, SASL PLAIN / SCRAM-SHA-256 / EXTERNAL (client certificates), Strict Transport Security. **No password is ever stored**: you are asked each time. |
-| 📡 **IRCv3** | `server-time`, `message-tags`, `echo-message`, `extended-join`, `account-notify`, `away-notify`, `chghost`, `setname`, `batch` (netsplit summaries), `chathistory`, typing indicators, `MONITOR`. |
+| 📡 **IRCv3** | `server-time`, `message-tags`, `echo-message`, `extended-join`, `account-notify`, `away-notify`, `chghost`, `setname`, `batch` (netsplit summaries), `chathistory`, typing indicators, `MONITOR`, `invite-notify`, `labeled-response`, message replies and reactions. |
 | 🪟 **Docked panes** | Servers, Events, Messages, Notices, URLs, Channels, Connections, Users, Buddies and Output panes; drag them to any edge, split, float, and save up to five layouts. |
 | 🎨 **Themes** | Light, Dark or follow Windows, all flat; choose your own chat colors and fonts. |
 | 💬 **Chat comforts** | Tab completion, highlights, clickable links (with a "where does this really go" hint), double-click a `#channel` or nick, find in window, log search, multi-line paste protection. |
@@ -82,6 +82,7 @@ full list, and press <kbd>Tab</kbd> to complete commands, `#channels` and nicks.
 | `/dcc send <nick> [file]`, `/dcc chat <nick>` | File transfers and direct chats. |
 | `/find <text>`, `/logsearch <text>` | Search the window; search your saved logs. |
 | `/script [reload\|unload name\|folder]` | List, reload or stop Lua scripts; scripts can add commands of their own. |
+| `/invite <nick> [#chan]`, `/reply <nick> <text>`, `/react <nick> <emoji>` | Invite someone; answer a person's latest message so the reply shows what it answers; react to it (`/unreact` takes it back). |
 | `/sound [event sound]` | List the event sounds, try one (`/sound message`) or set one (`/sound private mail`). |
 | `/alias [name text]`, `/uptime`, `/identity`, `/perform` | Your own commands, uptime, identities, connect scripts. |
 | `/quit [reason]`, `/clear`, `/close`, `/raw <line>` | Leave, tidy up, or send a raw IRC line. |

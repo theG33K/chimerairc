@@ -21,7 +21,7 @@ pub const MAX_DEPTH: u32 = 4;
 /// The commands the program has itself; an alias cannot take their names.
 pub const BUILTINS: &[&str] = &[
     "help", "?", "server", "connect", "ignore", "unignore", "perform", "autoperform", "buddy", "buddies", "monitor", "find",
-    "logsearch", "identity", "setname", "list", "join", "j", "part", "leave", "msg", "privmsg", "notice",
+    "logsearch", "identity", "setname", "invite", "reply", "react", "unreact", "list", "join", "j", "part", "leave", "msg", "privmsg", "notice",
     "query", "q", "dcc", "me", "action", "mode", "away", "whois", "wi", "ns", "nickserv", "cs", "chanserv", "nick", "history",
     "topic", "quit", "disconnect", "raw", "quote", "clear", "close", "alias", "uptime", "say", "back", "stoppaste",
 ];

@@ -121,7 +121,8 @@ pub(super) fn event(conn: u32, win: Option<isize>, target: &str, name: &str, fie
 }
 
 /// A chat message (or notice, or action) arrived.
-pub(super) fn message(conn: u32, nick: &str, target: &str, text: &str, kind: ChatKind, from_me: bool) {
+#[allow(clippy::too_many_arguments)]
+pub(super) fn message(conn: u32, nick: &str, target: &str, text: &str, kind: ChatKind, from_me: bool, msgid: Option<&str>, reply_to: Option<&str>) {
     if with_host(|h| h.names().is_empty()).unwrap_or(true) {
         return;
     }
@@ -138,6 +139,8 @@ pub(super) fn message(conn: u32, nick: &str, target: &str, text: &str, kind: Cha
         ("action", Val::from(kind == ChatKind::Action)),
         ("mine", Val::from(from_me)),
         ("network", Val::from(net)),
+        ("msgid", Val::from(msgid.unwrap_or(""))),
+        ("reply_to", Val::from(reply_to.unwrap_or(""))),
     ];
     event(conn, win, if private { peer } else { target }, name, &fields);
 }

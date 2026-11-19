@@ -498,3 +498,130 @@ fn alternate_nicks_are_tried_in_order_then_the_underscore_fallback() {
     feed(&mut s, ":srv 001 me3_ :Welcome");
     assert_eq!(s.nick(), "me3_");
 }
+
+// ------------------------------------------------------------------------------- invite, labels, replies, reactions
+
+#[test]
+fn the_new_capabilities_are_asked_for() {
+    let mut s = Session::new(Config::new("h", "me"));
+    s.start();
+    s.take_outbox();
+    feed(&mut s, ":srv CAP * LS :invite-notify labeled-response batch message-tags");
+    let asked = wire(&mut s);
+    for cap in ["invite-notify", "labeled-response", "batch", "message-tags"] {
+        assert!(asked.contains(&format!("CAP REQ {cap}")), "{cap} was not requested: {asked:?}");
+    }
+}
+
+#[test]
+fn invitations_are_reported_for_us_and_for_others() {
+    let mut s = caps_session("invite-notify", "");
+    feed(&mut s, ":alice!a@h INVITE me #secret");
+    feed(&mut s, ":alice!a@h INVITE bob #secret");
+    feed(&mut s, ":alice!a@h INVITE");
+    let got: Vec<_> = s.take_events().into_iter().filter_map(|e| match e {
+        Event::Invite { by, nick, channel } => Some((by, nick, channel)),
+        _ => None,
+    }).collect();
+    assert_eq!(got, vec![
+        ("alice".into(), "me".into(), "#secret".into()),
+        ("alice".into(), "bob".into(), "#secret".into()),
+    ]);
+}
+
+#[test]
+fn what_answers_a_labeled_command_is_wrapped_in_label_events() {
+    let mut s = caps_session("labeled-response batch", "");
+    // one reply carrying the label itself
+    feed(&mut s, "@label=l1 :srv 311 me bob b h * :Bob");
+    // a batch with the label on its start; the messages inside carry the batch tag
+    feed(&mut s, "@label=l2 :srv BATCH +x labeled-response");
+    feed(&mut s, "@batch=x :srv 311 me carol c h * :Carol");
+    feed(&mut s, "@batch=x :srv 318 me carol :End of /WHOIS list");
+    feed(&mut s, ":srv BATCH -x");
+    // after the batch closes, an unrelated line has no label
+    feed(&mut s, "@batch=x :srv 372 me :- motd");
+    let ev = s.take_events();
+    let kinds: Vec<String> = ev.iter().map(|e| match e {
+        Event::Label { label: Some(l) } => format!("[{l}"),
+        Event::Label { label: None } => "]".into(),
+        Event::Numeric { code, .. } => code.to_string(),
+        other => format!("{other:?}"),
+    }).collect();
+    assert_eq!(kinds[..3], ["[l1", "311", "]"]);
+    assert!(kinds.contains(&"[l2".to_owned()) && kinds.iter().filter(|k| *k == "]").count() >= 4, "{kinds:?}");
+    // the last line is outside any label
+    assert_eq!(kinds.last().unwrap(), "372");
+}
+
+#[test]
+fn a_labeled_send_carries_the_label_only_when_the_server_has_the_capability() {
+    let mut s = caps_session("labeled-response batch", "");
+    s.send_labeled(Message::new("WHOIS", &["bob"]), "chimera-7");
+    assert_eq!(wire(&mut s), ["@label=chimera-7 WHOIS bob"]);
+    let mut s = caps_session("away-notify", "");
+    s.send_labeled(Message::new("WHOIS", &["bob"]), "chimera-7");
+    assert_eq!(wire(&mut s), ["WHOIS bob"]);
+}
+
+#[test]
+fn replies_are_reported_with_the_message_they_answer() {
+    let mut s = caps_session("message-tags", "");
+    feed(&mut s, "@msgid=m1 :alice!a@h PRIVMSG #c :first");
+    feed(&mut s, "@msgid=m2;+draft/reply=m1 :bob!b@h PRIVMSG #c :an answer");
+    feed(&mut s, "@msgid=m3;+draft/reply=m1 :bob!b@h PRIVMSG #c :\u{1}ACTION nods\u{1}");
+    let chats: Vec<_> = s.take_events().into_iter().filter_map(|e| match e {
+        Event::Chat { text, msgid, reply_to, kind, .. } => Some((text, msgid, reply_to, kind)),
+        _ => None,
+    }).collect();
+    assert_eq!(chats[0], ("first".into(), Some("m1".into()), None, ChatKind::Message));
+    assert_eq!(chats[1], ("an answer".into(), Some("m2".into()), Some("m1".into()), ChatKind::Message));
+    assert_eq!(chats[2], ("nods".into(), Some("m3".into()), Some("m1".into()), ChatKind::Action));
+}
+
+#[test]
+fn reactions_are_reported_including_our_own_and_taken_back() {
+    let mut s = caps_session("message-tags", "");
+    feed(&mut s, "@+draft/react=👍;+draft/reply=m1 :bob!b@h TAGMSG #c");
+    feed(&mut s, "@+draft/unreact=👍;+draft/reply=m1 :bob!b@h TAGMSG #c");
+    feed(&mut s, "@+draft/react=❤;+draft/reply=m2 :me!m@h TAGMSG #c");
+    feed(&mut s, "@+draft/react=👍 :bob!b@h TAGMSG #c"); // no message named: nothing to show
+    let got: Vec<_> = s.take_events().into_iter().filter_map(|e| match e {
+        Event::React { nick, target, msgid, emoji, remove } => Some((nick, target, msgid, emoji, remove)),
+        _ => None,
+    }).collect();
+    assert_eq!(got, vec![
+        ("bob".into(), "#c".into(), "m1".into(), "👍".into(), false),
+        ("bob".into(), "#c".into(), "m1".into(), "👍".into(), true),
+        ("me".into(), "#c".into(), "m2".into(), "❤".into(), false),
+    ]);
+}
+
+#[test]
+fn our_replies_and_reactions_are_sent_only_where_the_server_allows_the_tags() {
+    let mut s = caps_session("message-tags", "");
+    assert!(s.send_reply("#c", "m1", "hello"));
+    assert!(s.send_react("#c", "m1", "👍", false));
+    assert!(s.send_react("#c", "m1", "👍", true));
+    assert_eq!(wire(&mut s), [
+        "@+draft/reply=m1 PRIVMSG #c hello",
+        "@+draft/react=👍;+draft/reply=m1 TAGMSG #c",
+        "@+draft/unreact=👍;+draft/reply=m1 TAGMSG #c",
+    ]);
+    // a server that forbids the tags: the reply is said plainly, the reaction is not sent
+    let mut s = caps_session("message-tags", "CLIENTTAGDENY=*");
+    assert!(!s.send_reply("#c", "m1", "hello"));
+    assert!(!s.send_react("#c", "m1", "👍", false));
+    assert_eq!(wire(&mut s), ["PRIVMSG #c hello"]);
+    // no message-tags at all
+    let mut s = caps_session("away-notify", "");
+    assert!(!s.send_reply("#c", "m1", "hello"));
+    assert!(!s.send_react("#c", "m1", "👍", false));
+    assert_eq!(wire(&mut s), ["PRIVMSG #c hello"]);
+    // a bad emoji (empty, spaces, control characters) is refused
+    let mut s = caps_session("message-tags", "");
+    for bad in ["", "a b", "x\u{7}"] {
+        assert!(!s.send_react("#c", "m1", bad, false), "{bad:?}");
+    }
+    assert!(wire(&mut s).is_empty());
+}

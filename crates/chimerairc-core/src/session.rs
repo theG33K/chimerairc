@@ -31,6 +31,8 @@ const WANTED_CAPS: &[&str] = &[
     "chghost",
     "batch",
     "setname",
+    "invite-notify",
+    "labeled-response",
 ];
 
 /// The chat history capability, under its final name and its draft one. Only asked for when the
@@ -130,6 +132,8 @@ pub struct Session {
     sasl_in: String,
     /// `chathistory` batches in progress, by reference tag.
     batches: HashMap<String, Batch>,
+    /// Open `labeled-response` batches: batch reference -> the label of the command they answer.
+    labeled: HashMap<String, String>,
     /// 
     /// netsplit / netjoin batches in progress, by reference tag.
     splits: HashMap<String, Split>,
@@ -181,6 +185,7 @@ impl Session {
             mech: None,
             sasl_in: String::new(),
             batches: HashMap::new(),
+            labeled: HashMap::new(),
             splits: HashMap::new(),
             alt_used: 0,
             registration_sent: false,
@@ -458,6 +463,20 @@ impl Session {
         if self.upgrading {
             return; // finished: the connection is being replaced by a secure one
         }
+        // `labeled-response`: what the server sends back for a command of ours carries its label (on the message, or
+        // on the batch the message is in); the UI is told which events belong to which command.
+        let label = m.tag("label").map(str::to_owned).or_else(|| m.tag("batch").and_then(|r| self.labeled.get(r).cloned()));
+        match label {
+            Some(l) => {
+                self.emit(Event::Label { label: Some(l) });
+                self.handle_one(m);
+                self.emit(Event::Label { label: None });
+            }
+            None => self.handle_one(m),
+        }
+    }
+
+    fn handle_one(&mut self, m: &Message) {
         let cmd = m.command.as_str();
         match cmd {
             "PING" => {
@@ -480,6 +499,7 @@ impl Session {
             "TOPIC" => self.on_topic(m),
             "MODE" => self.on_mode(m),
             "TAGMSG" => self.on_tagmsg(m),
+            "INVITE" => self.on_invite(m),
             "SETNAME" => {
                 if let (Some(s), Some(realname)) = (&m.source, m.params.first()) {
                     self.emit(Event::SetName { nick: s.name.clone(), realname: realname.clone() });
@@ -871,6 +891,7 @@ impl Session {
         let is_notice = m.command == "NOTICE";
         let time = m.tag("time").map(str::to_owned);
         let msgid = m.tag("msgid").map(str::to_owned);
+        let reply_to = m.tag("+draft/reply").or_else(|| m.tag("+reply")).filter(|v| !v.is_empty()).map(str::to_owned);
         let ctcp = Ctcp::parse(text);
         // Drop ignored traffic before anything else, so there is no event and no automatic reply.
         let kind = match &ctcp {
@@ -896,6 +917,7 @@ impl Session {
                     kind: ChatKind::Action,
                     time,
                     msgid,
+                    reply_to,
                 });
                 return;
             }
@@ -906,7 +928,7 @@ impl Session {
             return;
         }
         let kind = if is_notice { ChatKind::Notice } else { ChatKind::Message };
-        self.emit(Event::Chat { source: src.clone(), target: target.clone(), text: text.clone(), kind, time, msgid });
+        self.emit(Event::Chat { source: src.clone(), target: target.clone(), text: text.clone(), kind, time, msgid, reply_to });
     }
 
     /// Add one line to the history batch `reference`.
@@ -944,11 +966,17 @@ impl Session {
                 let servers = m.params.iter().skip(2).take(2).cloned().collect();
                 self.splits.insert(reference.to_owned(), Split { join: kind == "netjoin", servers, nicks: Vec::new(), channels: Vec::new() });
             }
+            if kind == "labeled-response" && self.labeled.len() < MAX_OPEN_BATCHES {
+                if let Some(l) = m.tag("label") {
+                    self.labeled.insert(reference.to_owned(), l.to_owned());
+                }
+            }
             if HISTORY_CAPS.contains(&kind) && self.batches.len() < MAX_OPEN_BATCHES {
                 let target = m.params.get(2).cloned().unwrap_or_default();
                 self.batches.insert(reference.to_owned(), Batch { target, lines: Vec::new() });
             }
         } else if let Some(reference) = first.strip_prefix('-') {
+            self.labeled.remove(reference);
             if let Some(b) = self.batches.remove(reference) {
                 self.emit(Event::History { target: b.target, lines: b.lines });
             }
@@ -1016,11 +1044,67 @@ impl Session {
     /// A `TAGMSG` carrying `+typing` from someone else.
     fn on_tagmsg(&mut self, m: &Message) {
         let (Some(src), Some(target)) = (&m.source, m.params.first()) else { return };
+        // a reaction: `+draft/react=<emoji>` (or `+draft/unreact`) with `+draft/reply=<msgid of the message>`
+        let react = m.tag("+draft/react").map(|e| (e, false)).or_else(|| m.tag("+draft/unreact").map(|e| (e, true)));
+        if let (Some((emoji, remove)), Some(msgid)) = (react, m.tag("+draft/reply")) {
+            if !emoji.is_empty() && !msgid.is_empty() && !self.is_ignored(src, target, IgnoreKind::Message) {
+                self.emit(Event::React { nick: src.name.clone(), target: target.clone(), msgid: msgid.to_owned(), emoji: emoji.to_owned(), remove });
+            }
+            return;
+        }
         let Some(state) = m.tag("+typing").and_then(TypingState::from_tag_value) else { return };
         if self.is_me(&src.name) || self.is_ignored(src, target, IgnoreKind::Message) {
             return;
         }
         self.emit(Event::Typing { nick: src.name.clone(), target: target.clone(), state });
+    }
+
+    /// `INVITE <nick> <channel>`: someone invited us (or, with `invite-notify`, someone else to a channel we are in).
+    fn on_invite(&mut self, m: &Message) {
+        let (Some(src), [nick, channel, ..]) = (&m.source, m.params.as_slice()) else { return };
+        if self.is_ignored(src, channel, IgnoreKind::Message) {
+            return;
+        }
+        self.emit(Event::Invite { by: src.name.clone(), nick: nick.clone(), channel: channel.clone() });
+    }
+
+    /// Send a message with a `label`, so the server's answer can be recognised (`labeled-response`). Without that
+    /// capability the message goes out as it is.
+    pub fn send_labeled(&mut self, mut m: Message, label: &str) {
+        if self.enabled.contains("labeled-response") {
+            m.tags.push(chimerairc_proto::Tag { key: "label".into(), value: Some(label.into()) });
+        }
+        self.outbox.push(m);
+    }
+
+    fn tag_allowed(&self, tag: &str) -> bool {
+        self.enabled.contains("message-tags") && crate::isupport::client_tag_allowed(self.isupport.raw.get("CLIENTTAGDENY").map(String::as_str), tag)
+    }
+
+    /// Say `text` to `target` as a reply to the message `msgid`. Where the server does not carry reply tags it is
+    /// said as an ordinary message. Returns whether the reply tag was used.
+    pub fn send_reply(&mut self, target: &str, msgid: &str, text: &str) -> bool {
+        let mut m = Message::new("PRIVMSG", &[target, text]);
+        let tagged = self.tag_allowed("draft/reply") && !msgid.is_empty();
+        if tagged {
+            m.tags.push(chimerairc_proto::Tag { key: "+draft/reply".into(), value: Some(msgid.into()) });
+        }
+        self.outbox.push(m);
+        tagged
+    }
+
+    /// React to the message `msgid` in `target` with `emoji` (or take the reaction back). Needs a server that
+    /// carries the tags; otherwise nothing is sent and false is returned.
+    pub fn send_react(&mut self, target: &str, msgid: &str, emoji: &str, remove: bool) -> bool {
+        let bad = emoji.is_empty() || emoji.len() > 64 || emoji.chars().any(|c| c.is_control() || c.is_whitespace());
+        if bad || msgid.is_empty() || !self.tag_allowed("draft/react") || !self.tag_allowed("draft/reply") {
+            return false;
+        }
+        let mut m = Message::new("TAGMSG", &[target]);
+        m.tags.push(chimerairc_proto::Tag { key: if remove { "+draft/unreact" } else { "+draft/react" }.into(), value: Some(emoji.into()) });
+        m.tags.push(chimerairc_proto::Tag { key: "+draft/reply".into(), value: Some(msgid.into()) });
+        self.outbox.push(m);
+        true
     }
 
     /// Tell `target` (a channel or a nick) what we are doing with the entry box. Sent only when the server has

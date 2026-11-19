@@ -15,6 +15,8 @@ Where the project is and where it is going. These are plans and ideas, not promi
 - `server-time`, `message-tags`, `echo-message`, `extended-join`, `multi-prefix`, `userhost-in-names`
 - `account-notify`, `away-notify`, `chghost`, `setname`, `batch` (netsplit and netjoin summaries)
 - `chathistory` with `/history before|after|around|between`, typing indicators, `MONITOR`
+- `invite-notify` (see who is invited to a channel, and `/invite`), `labeled-response` (a server's answer to `/whois` comes
+  back to the window you typed it in), message replies and reactions (`/reply`, `/react`)
 
 **Windows and panes**
 - MDI chat windows with a topic bar and a nick list that shows away marks
@@ -56,7 +58,7 @@ Where the project is and where it is going. These are plans and ideas, not promi
 - A **Linux version**. The protocol and engine crates (`chimerairc-proto`, `chimerairc-core`) contain no Windows-specific
   code; a new front end would sit on top of them.
 - 32-bit Windows and ARM64 builds
-- More IRCv3: `labeled-response`, `invite-notify`, message replies and reactions
+- More IRCv3, such as `read-marker` and `metadata`
 - A built-in `identd` server
 
 ## ❌ Deliberately not done

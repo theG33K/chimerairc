@@ -75,7 +75,8 @@ pub enum Event {
     StsUpgrade { port: u16 },
     /// PRIVMSG / NOTICE / ACTION. `target` is a channel or our own nick.
     /// `time` is the IRCv3 `server-time` tag when present.
-    Chat { source: Source, target: String, text: String, kind: ChatKind, time: Option<String>, msgid: Option<String> },
+    /// `reply_to` is the `msgid` this message answers (the `+draft/reply` tag).
+    Chat { source: Source, target: String, text: String, kind: ChatKind, time: Option<String>, msgid: Option<String>, reply_to: Option<String> },
     /// A complete `chathistory` batch for `target`, oldest line first (possibly empty).
     History { target: String, lines: Vec<HistoryLine> },
     /// Non-ACTION CTCP. `reply` is true when it arrived in a NOTICE.
@@ -87,6 +88,13 @@ pub enum Event {
     Nick { old: String, new: String },
     /// `setname`: `nick` changed their real name.
     SetName { nick: String, realname: String },
+    /// `invite-notify` (or an invitation to us): `by` invited `nick` to `channel`.
+    Invite { by: String, nick: String, channel: String },
+    /// A reaction (`+draft/react`, or `+draft/unreact` when `remove`) from `nick` to the message `msgid` in `target`.
+    React { nick: String, target: String, msgid: String, emoji: String, remove: bool },
+    /// `labeled-response`: the events that follow, up to the next `Label { label: None }`, answer the command we
+    /// sent with this label.
+    Label { label: Option<String> },
     /// `+typing` client tag (a `TAGMSG`): `nick` is typing in `target` (a channel, or our own nick for a private chat).
     Typing { nick: String, target: String, state: TypingState },
     /// A `netsplit` batch ended: `nicks` quit because the link between `servers` broke (the individual

@@ -566,8 +566,8 @@ pub const EXAMPLE: &str = r#"-- ChimeraIRC example script. To use it, rename thi
 -- Options > Scripts > Reload Scripts (or type /script reload).
 --
 -- What a script can do:
---   chimera.on("message", function(m) ... end)   m.nick  m.target  m.text  m.private  m.action  m.mine  m.network
---   also "notice", "join", "part", "connect", "disconnect" and "input" (return true to stop a typed line)
+--   chimera.on("message", function(m) ... end)   m.nick  m.target  m.text  m.private  m.action  m.mine  m.network  m.msgid  m.reply_to
+--   also "notice", "join", "part", "invite", "react", "connect", "disconnect" and "input" (return true to stop a typed line)
 --   chimera.command("hello", function(args) ... end)   adds /hello
 --   chimera.say(text)  chimera.me(text)  chimera.msg(target, text)  chimera.notice(target, text)
 --   chimera.raw(line)  chimera.run("/any command")  chimera.echo(text) / print(text) show text only to you
