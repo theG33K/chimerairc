@@ -25,8 +25,7 @@
 
 ## ✨ What it is
 
-ChimeraIRC keeps what made IRC clients of days past pleasant — MDI chat windows, panes docked around the edges, a classic menu and toolbar — built as a native, memory-safe Win32 program with current RFC standards. No runtime, no web view, no Electron, no tracking or telemetry. Security minded: TLS by default, SASL, and the IRCv3 extensions that make IRC feel modern. No runtime, no web view,
-one `.exe` of about 7 MB with a small memory footprint.
+ChimeraIRC keeps what made IRC clients of days past pleasant — MDI chat windows, panes docked around the edges, a classic menu and toolbar — built as a native, memory-safe Win32 program with current RFC standards. No runtime, no web view, no Electron, no tracking or telemetry. Security minded: TLS by default, SASL, and the IRCv3 extensions that make IRC feel modern. One `.exe` of about 7mb with a small memory footprint.
 
 ## 🚀 Features
 
