@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChimeraIRC — a modern IRC client for Windows</title>
+<meta name="description" content="ChimeraIRC is a small, native Windows IRC client written in Rust. Classic docked-pane look in the spirit of HydraIRC, with TLS, SASL, IRCv3, DCC and Lua scripting.">
+<meta name="theme-color" content="#0b0d14">
+<meta property="og:title" content="ChimeraIRC — a modern IRC client for Windows">
+<meta property="og:description" content="Classic docked-pane look, modern IRCv3 underneath. One ~7 MB .exe, no runtime, no web view, no tracking.">
+<meta property="og:image" content="https://theg33k.github.io/chimerairc/assets/shot-dark-main.png">
+<meta property="og:url" content="https://theg33k.github.io/chimerairc/">
+<link rel="icon" href="assets/logo.png">
+<style>
+:root{
+  --bg:#0b0d14; --bg2:#10131d; --card:#141826; --card2:#1a1f31; --line:#262c42;
+  --text:#e8eaf3; --muted:#9aa2bd; --dim:#6b7391;
+  --purple:#9b5cff; --cyan:#35d4ff; --orange:#ffa23a; --red:#ff4d5e; --green:#4ade80;
+  --grad:linear-gradient(120deg,var(--orange),var(--red) 40%,var(--purple) 75%,var(--cyan));
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+img{max-width:100%;display:block}
+code,kbd,pre{font-family:"Cascadia Code",Consolas,"SF Mono",monospace}
+.wrap{width:min(1120px,100% - 32px);margin-inline:auto}
+section{padding:84px 0}
+h1,h2,h3{line-height:1.15;margin:0}
+h2{font-size:clamp(1.7rem,3.4vw,2.4rem);letter-spacing:-.02em}
+.eyebrow{display:inline-block;font-size:.78rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin-bottom:12px}
+.lead{color:var(--muted);font-size:1.1rem;max-width:62ch;margin:14px 0 0}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;background:rgba(11,13,20,.8);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:22px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--text)}
+.brand img{width:30px;height:30px;border-radius:8px}
+.brand:hover{text-decoration:none}
+nav .links{margin-left:auto;display:flex;gap:22px;font-size:.92rem}
+nav .links a{color:var(--muted)}
+nav .links a:hover{color:var(--text);text-decoration:none}
+@media(max-width:820px){nav .links a:not(.btn){display:none}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:9px;padding:11px 20px;border-radius:10px;font-weight:600;border:1px solid var(--line);color:var(--text);background:var(--card);cursor:pointer;font-size:.97rem;transition:.18s}
+.btn:hover{text-decoration:none;border-color:var(--purple);transform:translateY(-1px)}
+.btn.primary{border:0;color:#fff;background:linear-gradient(120deg,#e2662d,#d8334f 45%,#8a4dff);box-shadow:0 8px 30px -8px rgba(155,92,255,.6)}
+.btn.primary:hover{box-shadow:0 10px 36px -6px rgba(155,92,255,.8)}
+.btn.small{padding:7px 14px;font-size:.88rem}
+.btn svg{width:18px;height:18px;fill:currentColor}
+
+/* hero */
+.hero{position:relative;padding:76px 0 40px;overflow:hidden;text-align:center}
+.hero::before{content:"";position:absolute;inset:-20% -10% auto;height:620px;background:
+  radial-gradient(500px 300px at 22% 30%,rgba(255,162,58,.18),transparent 70%),
+  radial-gradient(500px 320px at 78% 28%,rgba(255,77,94,.16),transparent 70%),
+  radial-gradient(520px 340px at 50% 10%,rgba(155,92,255,.22),transparent 70%);pointer-events:none}
+.hero>.wrap{position:relative}
+.hero .logo{width:132px;margin:0 auto 22px;border-radius:28px;box-shadow:0 20px 60px -12px rgba(155,92,255,.55)}
+.hero h1{font-size:clamp(2.4rem,6vw,4.1rem);letter-spacing:-.035em}
+.hero p.tag{font-size:clamp(1.05rem,2vw,1.3rem);color:var(--muted);max-width:640px;margin:18px auto 0}
+.cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:30px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:24px;font-size:.78rem}
+.badges span{padding:3px 11px;border:1px solid var(--line);border-radius:99px;color:var(--muted);background:var(--bg2)}
+.note{margin-top:14px;font-size:.84rem;color:var(--dim)}
+
+/* window frame for screenshots */
+.shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#000;box-shadow:0 40px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.03),0 0 120px -30px rgba(155,92,255,.45)}
+.shot img{width:100%;height:auto}
+.hero .shot{margin-top:54px;text-align:left}
+.tabs{display:flex;gap:8px;justify-content:center;margin:34px 0 16px}
+.tabs button{font:inherit;font-size:.9rem;padding:7px 16px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:pointer}
+.tabs button[aria-selected=true]{color:#fff;border-color:var(--purple);background:rgba(155,92,255,.18)}
+#themeshot img{transition:opacity .25s}
+
+/* features */
+.grid{display:grid;gap:18px;margin-top:44px}
+.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:900px){.g3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.g3{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px;transition:.2s}
+.card:hover{border-color:#3a4263;transform:translateY(-2px)}
+.card .ico{font-size:1.6rem;display:block;margin-bottom:10px}
+.card h3{font-size:1.08rem;margin-bottom:8px}
+.card p{margin:0;color:var(--muted);font-size:.95rem}
+.alt{background:var(--bg2);border-block:1px solid var(--line)}
+
+/* split */
+.split{display:grid;grid-template-columns:1fr 1.15fr;gap:48px;align-items:center}
+.split.rev{grid-template-columns:1.15fr 1fr}
+.split.rev .txt{order:2}
+@media(max-width:900px){.split,.split.rev{grid-template-columns:1fr;gap:28px}.split.rev .txt{order:0}}
+.ticks{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:10px}
+.ticks li{padding-left:28px;position:relative;color:var(--muted)}
+.ticks li::before{content:"";position:absolute;left:0;top:.5em;width:14px;height:8px;border-left:2px solid var(--green);border-bottom:2px solid var(--green);transform:rotate(-45deg) scale(.9)}
+.ticks b{color:var(--text);font-weight:600}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.chips code{padding:4px 11px;border-radius:8px;background:var(--card2);border:1px solid var(--line);font-size:.82rem;color:#cdd3ec}
+
+/* code */
+pre{margin:0;background:#0a0c13;border:1px solid var(--line);border-radius:12px;padding:20px;overflow:auto;font-size:.86rem;line-height:1.6;color:#d6dbf0}
+pre .c{color:#6b7391}pre .k{color:var(--purple)}pre .s{color:var(--green)}pre .f{color:var(--cyan)}
+kbd{background:var(--card2);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px;font-size:.8rem;color:var(--text)}
+:not(pre)>code{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:.88em;color:#cdd3ec}
+
+/* install steps */
+.steps{counter-reset:s;display:grid;gap:16px;margin-top:40px}
+.step{display:grid;grid-template-columns:44px 1fr;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.step::before{counter-increment:s;content:counter(s);width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:1.1rem;background:var(--grad);color:#fff}
+.step h3{font-size:1.05rem;margin-bottom:4px}
+.step p{margin:0;color:var(--muted);font-size:.95rem}
+.step pre{margin-top:12px}
+.dl{text-align:center;padding:56px 24px;border-radius:20px;border:1px solid var(--line);background:
+  radial-gradient(500px 220px at 50% 0%,rgba(155,92,255,.22),transparent 70%),var(--card);margin-top:40px}
+.dl h3{font-size:1.5rem}
+.dl p{color:var(--muted);margin:10px auto 24px;max-width:52ch}
+
+/* tables */
+.tw{overflow-x:auto;margin-top:36px;border:1px solid var(--line);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--card2);color:var(--muted);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
+tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap}
+td{color:var(--muted)}
+
+/* roadmap */
+.road{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+@media(max-width:900px){.road{grid-template-columns:1fr}}
+.road .card h3{display:flex;align-items:center;gap:8px}
+.road ul{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:.93rem}
+.road li{margin:5px 0}
+.tag-pill{font-size:.7rem;padding:2px 9px;border-radius:99px;border:1px solid;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.t-now{color:var(--green);border-color:rgba(74,222,128,.4)}
+.t-next{color:var(--orange);border-color:rgba(255,162,58,.4)}
+.t-idea{color:var(--cyan);border-color:rgba(53,212,255,.4)}
+
+footer{border-top:1px solid var(--line);padding:44px 0;color:var(--dim);font-size:.9rem}
+footer .wrap{display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:center}
+footer .fl{display:flex;gap:20px;flex-wrap:wrap}
+footer a{color:var(--muted)}
+.lightbox{position:fixed;inset:0;background:rgba(5,6,10,.92);display:none;place-items:center;z-index:100;padding:20px;cursor:zoom-out}
+.lightbox.on{display:grid}
+.lightbox img{max-height:92vh;border-radius:10px;border:1px solid var(--line)}
+.zoom{cursor:zoom-in}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/logo.png" alt=""> ChimeraIRC</a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#screens">Screenshots</a>
+      <a href="#scripting">Scripting</a>
+      <a href="#install">Install</a>
+      <a href="#commands">Commands</a>
+      <a href="#roadmap">Roadmap</a>
+      <a class="btn small primary" href="https://github.com/theG33K/chimerairc/releases">Download</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <img class="logo" src="assets/logo.png" alt="ChimeraIRC logo: a lion, a goat and a dragon around a chat bubble">
+    <h1><span class="grad">ChimeraIRC</span></h1>
+    <p class="tag">A Windows IRC client written in Rust, in the spirit of HydraIRC.<br>Classic docked-pane look, modern IRCv3 underneath.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/theG33K/chimerairc/releases">
+        <svg viewBox="0 0 16 16"><path d="M7.25 1.75a.75.75 0 0 1 1.5 0v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75ZM2.5 12.25a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5a.75.75 0 0 1-.75-.75Z"/></svg>
+        Download for Windows</a>
+      <a class="btn" href="https://github.com/theG33K/chimerairc">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        View on GitHub</a>
+    </div>
+    <div class="badges">
+      <span>v0.1.5 · early release</span><span>Windows 10 / 11 (64-bit)</span><span>Written in Rust</span><span>GPL-3.0-or-later</span><span>≈ 7 MB · one .exe</span>
+    </div>
+    <div class="shot zoom"><img src="assets/shot-dark-main.png" alt="ChimeraIRC in the dark theme: server tree on the left, floating Status and channel windows, docked URLs pane below" width="1372" height="863"></div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <span class="eyebrow">What it is</span>
+    <h2>Iconic look and feel, built <span class="grad">small, native and safe</span></h2>
+    <p class="text">ChimeraIRC keeps what made IRC clients of days past pleasant — MDI chat windows, panes docked around the edges, a classic menu and toolbar — and built as a native, memory-safe Win32 program with current standards. No runtime, no web view, no Electron, no tracking or telemetry, and absolutely no BS.</p>
+
+    <div class="grid g3">
+      <div class="card"><span class="ico">🔒</span><h3>Secure by default</h3><p>TLS everywhere, SASL PLAIN / SCRAM-SHA-256 / EXTERNAL (client certificates) and Strict Transport Security. <b>No password is ever stored</b> — you are asked each time.</p></div>
+      <div class="card"><span class="ico">📡</span><h3>Modern IRCv3</h3><p>Server time, message tags, echo-message, account and away notifications, netsplit summaries, chat history, typing indicators and MONITOR.</p></div>
+      <div class="card"><span class="ico">🪟</span><h3>Docked panes</h3><p>Servers, Events, Messages, Notices, URLs, Channels, Connections, Users, Buddies and Output. Drag to any edge, split, float, and save up to five layouts.</p></div>
+      <div class="card"><span class="ico">🎨</span><h3>Light &amp; dark themes</h3><p>Flat themes that switch at run time or follow Windows. Choose your own chat colors and fonts; toolbar icons are drawn for each theme and tested at high DPI.</p></div>
+      <div class="card"><span class="ico">💬</span><h3>Chat comforts</h3><p>Tab completion, regex highlights, clickable links with a “where does this really go” hint, find in window, log search and multi-line paste protection.</p></div>
+      <div class="card"><span class="ico">📁</span><h3>Full DCC</h3><p>Files and chats with resume, passive, IPv6, turbo and TLS. UPnP / NAT-PMP / PCP port mapping. Drag a file or paste a picture onto a chat to send it.</p></div>
+      <div class="card"><span class="ico">👥</span><h3>People tools</h3><p>Buddy list with groups, ignore list, away marks in the nick list, rank-colored nicks and a global user list.</p></div>
+      <div class="card"><span class="ico">🧰</span><h3>Make it yours</h3><p>Identities per network, auto-perform scripts, aliases, favorites with auto-join, and per-event sounds with your own <code>.wav</code> files.</p></div>
+      <div class="card"><span class="ico">📦</span><h3>Easy to install</h3><p>A per-user MSI — no administrator rights — or a portable ZIP. Upgrades in place, and Help → Check for Updates tells you when a new release is out.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="screens" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">Screenshots</span>
+    <h2>Dark, light, and everything in between</h2>
+    <p class="lead">Float windows or tile them, dock panes where you like, and flip themes from the Options menu. Click any image to enlarge.</p>
+
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-img="assets/shot-dark-menu.png" data-alt="Dark theme with the Options menu open">Dark</button>
+	  <button role="tab" aria-selected="false" data-img="assets/shot-light-float.png" data-alt="Light theme with floating MDI windows">Light</button>
+	  <button role="tab" aria-selected="false" data-img="assets/shot-dark-tiling.png" data-alt="Dark theme with tiled MDI windows">Tiling</button>
+	  <button role="tab" aria-selected="false" data-img="assets/shot-light-layouts.png" data-alt="Light theme with the layout menu open">Layouts</button>
+    </div>
+    <div class="shot zoom" id="themeshot"><img src="assets/shot-dark-menu.png" alt="Dark theme with the Options menu open" width="1372" height="863" loading="lazy"></div>
+
+    <div class="split" style="margin-top:80px">
+      <div class="txt">
+        <span class="eyebrow">Channel list</span>
+        <h2>Find your people fast</h2>
+        <p class="lead">A sortable, searchable channel list with a minimum-user filter and one-click join. Thousands of channels stay snappy.</p>
+        <ul class="ticks">
+          <li><b>Search</b> topics and names live</li>
+          <li><b>Min users</b> filter to skip the empty ones</li>
+          <li><b>Double-click</b> a <code>#channel</code> anywhere to join</li>
+        </ul>
+      </div>
+      <div class="shot zoom"><img src="assets/shot-dark-channels.png" alt="Channel list dialog for irc.undernet.org showing 3597 channels" width="766" height="543" loading="lazy"></div>
+    </div>
+	
+	<div class="split" style="margin-top:80px">
+      <div class="txt">
+        <span class="eyebrow">DCC Transfers</span>
+        <h2>Full DCC support</h2>
+        <p class="lead">Files and chats with resume, passive, IPv6, turbo and TLS. UPnP / NAT-PMP / PCP port mapping. Drag a file or paste a picture onto a chat to send it.</p>
+      </div>
+      <div class="shot zoom"><img src="assets/shot-dark-dcc.png" alt="Channel list dialog for irc.undernet.org showing 3597 channels" width="766" height="543" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section id="ircv3">
+  <div class="wrap split">
+    <div class="txt">
+      <span class="eyebrow">Under the hood</span>
+      <h2>Current standards, <span class="grad">no legacy baggage</span></h2>
+      <p class="lead">A sans-IO protocol engine written in Rust, kept separate from the GUI, with TLS on port 6697 by default and automatic reconnect with growing delays.</p>
+      <div class="chips">
+        <code>server-time</code><code>message-tags</code><code>echo-message</code><code>extended-join</code><code>multi-prefix</code><code>userhost-in-names</code><code>account-notify</code><code>away-notify</code><code>chghost</code><code>setname</code><code>batch</code><code>chathistory</code><code>typing</code><code>MONITOR</code><code>SASL PLAIN</code><code>SCRAM-SHA-256</code><code>SASL EXTERNAL</code><code>STS</code>
+      </div>
+    </div>
+    <div class="card" style="padding:28px">
+      <h3 style="margin-bottom:14px">🛡️ Privacy &amp; safety</h3>
+      <ul class="ticks">
+        <li><b>Passwords never touch disk</b> — not in settings, not in logs.</li>
+        <li>Service logins are masked on screen: <code>identify ******</code>.</li>
+        <li>Pasting several lines asks first, sends slowly, and <b>never runs a pasted <code>/command</code></b>.</li>
+        <li>Hover a link to see where it <b>really</b> goes. Nothing is fetched for previews.</li>
+        <li>The only thing it asks of the internet by itself is an <b>optional, off-by-default</b> update check.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="scripting" class="alt">
+  <div class="wrap split rev">
+    <pre><span class="c">-- answer "!ping" in the channel it was said in</span>
+chimera.<span class="f">on</span>(<span class="s">"message"</span>, <span class="k">function</span>(m)
+  <span class="k">if not</span> m.mine <span class="k">and not</span> m.private
+     <span class="k">and</span> m.text:<span class="f">lower</span>():<span class="f">find</span>(<span class="s">"!ping"</span>, 1, <span class="k">true</span>) <span class="k">then</span>
+    chimera.<span class="f">say</span>(<span class="s">"pong, "</span> .. m.nick)
+  <span class="k">end</span>
+<span class="k">end</span>)
+
+<span class="c">-- add a /hello command</span>
+chimera.<span class="f">command</span>(<span class="s">"hello"</span>, <span class="k">function</span>(args)
+  chimera.<span class="f">echo</span>(<span class="s">"Hello, "</span> .. (args ~= <span class="s">""</span> <span class="k">and</span> args <span class="k">or</span> <span class="s">"world"</span>))
+<span class="k">end</span>)
+
+<span class="c">-- run something every 10 minutes</span>
+chimera.<span class="f">timer</span>(600, <span class="k">function</span>() chimera.<span class="f">run</span>(<span class="s">"/uptime"</span>) <span class="k">end</span>, <span class="k">true</span>)</pre>
+    <div class="txt">
+      <span class="eyebrow">Lua scripting</span>
+      <h2>Automate it, <span class="grad">safely</span></h2>
+      <p class="lead">Drop <code>.lua</code> files in your scripts folder to answer messages, add your own <code>/commands</code>, react to joins and connections, and run timers.</p>
+      <ul class="ticks">
+        <li><b>Chat only</b> — no files, no network, no launching programs.</li>
+        <li>Runaway scripts are stopped; senders are rate-limited, so a bug can’t flood a server.</li>
+        <li><b>Options → Reload Scripts</b> or <code>/script reload</code> — no restart.</li>
+      </ul>
+      <p style="margin-top:20px"><a href="https://github.com/theG33K/chimerairc/blob/main/docs/SCRIPTING.md">Read the scripting guide →</a></p>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <span class="eyebrow">Get started</span>
+    <h2>Up and chatting in a minute</h2>
+
+    <div class="dl">
+      <img src="assets/logo.png" alt="" width="72" style="margin:0 auto 14px;border-radius:16px">
+      <h3>ChimeraIRC for Windows</h3>
+      <p>Grab <code>ChimeraIRC-&lt;version&gt;-x64.msi</code> (per-user, no admin rights) or the portable <code>.zip</code> from the GitHub releases page.</p>
+      <a class="btn primary" href="https://github.com/theG33K/chimerairc/releases">
+        <svg viewBox="0 0 16 16"><path d="M7.25 1.75a.75.75 0 0 1 1.5 0v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75ZM2.5 12.25a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5a.75.75 0 0 1-.75-.75Z"/></svg>
+        Download from GitHub Releases</a>
+      <p class="note">Not code-signed yet, so SmartScreen may say “unknown publisher”: choose <b>More info → Run anyway</b>. Signing is on the roadmap.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step"><div><h3>Install</h3><p>Run the MSI. It installs to <code>%LocalAppData%\Programs\ChimeraIRC</code> and adds a Start menu shortcut. Or unzip the portable build anywhere.</p></div></div>
+      <div class="step"><div><h3>Connect</h3><p>Choose <b>File → Connect</b> (<kbd>Ctrl</kbd>+<kbd>S</kbd>), double-click a network in the Servers pane — or just type in the entry box:</p>
+<pre>/server irc.libera.chat
+/join #rust</pre></div></div>
+      <div class="step"><div><h3>Explore</h3><p>Type <code>/help</code> for every command and press <kbd>Tab</kbd> to complete commands, <code>#channels</code> and nicks. Settings live in <b>Options</b>.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="commands" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">Reference</span>
+    <h2>Commands &amp; shortcuts</h2>
+    <p class="lead">Everything starts with <code>/</code>; anything else you type is said in the current window. <code>/server</code> uses TLS by default; add <code>-plain</code> to skip it.</p>
+    <div class="tw"><table>
+      <tr><th>Command</th><th>What it does</th></tr>
+      <tr><td><code>/server [-plain] &lt;host&gt; [port] [nick]</code></td><td>Connect to a server (TLS unless <code>-plain</code>).</td></tr>
+      <tr><td><code>/join</code> · <code>/part</code></td><td>Join or leave channels.</td></tr>
+      <tr><td><code>/query</code> · <code>/msg</code> · <code>/notice</code></td><td>Private chats and messages.</td></tr>
+      <tr><td><code>/me</code> · <code>/say</code></td><td>Do an action; say a line that starts with a slash.</td></tr>
+      <tr><td><code>/nick</code> · <code>/away</code> · <code>/back</code> · <code>/setname</code></td><td>Your identity and status.</td></tr>
+      <tr><td><code>/topic</code> · <code>/mode</code> · <code>/whois</code> · <code>/list</code></td><td>Channel and user information.</td></tr>
+      <tr><td><code>/ns</code> · <code>/cs</code></td><td>Talk to NickServ / ChanServ; logins are masked.</td></tr>
+      <tr><td><code>/ignore</code> · <code>/unignore</code></td><td>Hide people.</td></tr>
+      <tr><td><code>/buddy</code> · <code>/monitor</code></td><td>Watch when people come and go.</td></tr>
+      <tr><td><code>/history</code></td><td>Fetch chat history from servers that have it (<code>before|after|around|between</code>).</td></tr>
+      <tr><td><code>/dcc send</code> · <code>/dcc chat</code></td><td>File transfers and direct chats.</td></tr>
+      <tr><td><code>/find</code> · <code>/logsearch</code></td><td>Search the window; search your saved logs.</td></tr>
+      <tr><td><code>/script</code> · <code>/sound</code> · <code>/alias</code></td><td>Lua scripts, event sounds, your own commands.</td></tr>
+      <tr><td><code>/uptime</code> · <code>/identity</code> · <code>/perform</code></td><td>Uptime, identities, connect scripts.</td></tr>
+      <tr><td><code>/quit</code> · <code>/clear</code> · <code>/close</code> · <code>/raw</code></td><td>Leave, tidy up, or send a raw IRC line.</td></tr>
+    </table></div>
+    <p class="lead" style="margin-top:26px;font-size:.98rem">
+      <kbd>Ctrl</kbd>+<kbd>S</kbd> connect · <kbd>Ctrl</kbd>+<kbd>J</kbd> join · <kbd>Ctrl</kbd>+<kbd>L</kbd> channel list · <kbd>Ctrl</kbd>+<kbd>F</kbd> find (<kbd>F3</kbd> next) ·
+      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> search logs · <kbd>Ctrl</kbd>+<kbd>P</kbd> preferences · <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>5</kbd> dock layouts · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd> close window
+    </p>
+  </div>
+</section>
+
+<section id="settings">
+  <div class="wrap split">
+    <div class="txt">
+      <span class="eyebrow">Your data, your machine</span>
+      <h2>Plain text settings, <span class="grad">easy to move</span></h2>
+      <p class="lead">Everything is stored per user, outside the install folder, so upgrading or uninstalling never touches it. Back up or move your whole setup by copying one file.</p>
+      <ul class="ticks">
+        <li><code>%AppData%\ChimeraIRC\settings.ini</code> — all settings</li>
+        <li><code>%AppData%\ChimeraIRC\logs\</code> — chat logs, one folder per server</li>
+        <li><code>%AppData%\ChimeraIRC\scripts\</code> — your Lua scripts</li>
+        <li>Coming from winIRC? Your settings are picked up automatically.</li>
+      </ul>
+    </div>
+    <div class="shot zoom"><img src="assets/shot-about.png" alt="About ChimeraIRC dialog: version 0.1.5 by Howard E. DeWitt" width="472" height="323" loading="lazy"></div>
+  </div>
+</section>
+
+<section id="roadmap" class="alt">
+  <div class="wrap">
+    <span class="eyebrow">Roadmap</span>
+    <h2>Where it’s going</h2>
+    <p class="lead">Plans and ideas, not promises — the order can change.</p>
+    <div class="road">
+      <div class="card"><h3><span class="tag-pill t-now">Working</span> Today</h3>
+        <ul><li>TLS, STS, SASL, client certs, auto-reconnect</li><li>Broad IRCv3 support incl. chathistory</li><li>Dockable panes, 5 layouts, light/dark</li><li>DCC with port mapping</li><li>Lua scripting, highlights, sounds</li><li>MSI installer, portable ZIP, update check</li></ul></div>
+      <div class="card"><h3><span class="tag-pill t-next">Next</span> Code signing</h3>
+        <ul><li>Release builds are ready for SignPath’s free open-source signing</li><li>Ends the SmartScreen warning</li><li>See the <a href="https://github.com/theG33K/chimerairc/blob/main/docs/CODE_SIGNING_POLICY.md">code signing policy</a></li></ul></div>
+      <div class="card"><h3><span class="tag-pill t-idea">Ideas</span> Later</h3>
+        <ul><li>A Linux version on the same engine crates</li><li>32-bit Windows and ARM64 builds</li><li>labeled-response, invite-notify, replies &amp; reactions</li><li>A built-in identd server</li></ul></div>
+    </div>
+    <p class="lead" style="margin-top:34px;font-size:.98rem"><b style="color:var(--text)">Deliberately not done:</b> fetching pages to preview links (it tells that site who looked), uploading pasted pictures to a web service (DCC to one person instead), and storing passwords. Ever.</p>
+  </div>
+</section>
+
+<section id="build">
+  <div class="wrap split">
+    <div class="txt">
+      <span class="eyebrow">For developers</span>
+      <h2>Build it yourself</h2>
+      <p class="lead">You need Windows and <a href="https://rustup.rs/">Rust</a>; the repository pins the GNU toolchain. Three crates, cleanly layered:</p>
+      <ul class="ticks">
+        <li><code>chimerairc-proto</code> — message parse/encode, IRCv3 tags, CTCP. No I/O.</li>
+        <li><code>chimerairc-core</code> — sans-IO session engine, TLS transport, DCC, port mapping.</li>
+        <li><code>chimerairc-gui</code> — the native Win32 program.</li>
+      </ul>
+    </div>
+    <pre><span class="c"># run the tests</span>
+cargo test --workspace
+
+<span class="c"># start the program</span>
+cargo run -p chimerairc
+
+<span class="c"># build the MSI and portable ZIP into dist\</span>
+.\packaging\build-installer.ps1</pre>
+  </div>
+</section>
+
+<section style="padding-top:20px">
+  <div class="wrap">
+    <div class="dl" style="margin-top:0">
+      <h3>Ready to try it?</h3>
+      <p>Free software under the GPL. Bug reports and suggestions are welcome as GitHub issues.</p>
+      <div class="cta" style="margin:0">
+        <a class="btn primary" href="https://github.com/theG33K/chimerairc/releases">Download for Windows</a>
+        <a class="btn" href="https://github.com/theG33K/chimerairc">Star on GitHub</a>
+        <a class="btn" href="https://github.com/theG33K/chimerairc/issues">Report an issue</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>© ChimeraIRC · by Howard E. DeWitt · GPL-3.0-or-later</div>
+    <div class="fl">
+      <a href="https://github.com/theG33K/chimerairc">GitHub</a>
+      <a href="https://github.com/theG33K/chimerairc/releases">Releases</a>
+      <a href="https://github.com/theG33K/chimerairc/issues">Issues</a>
+      <a href="https://github.com/theG33K/chimerairc/blob/main/docs/SCRIPTING.md">Scripting</a>
+      <a href="https://github.com/theG33K/chimerairc/blob/main/LICENSE">License</a>
+    </div>
+  </div>
+</footer>
+
+<div class="lightbox" id="lb"><img alt=""></div>
+<script>
+(function(){
+  var box=document.getElementById('themeshot'), img=box.querySelector('img');
+  document.querySelectorAll('.tabs button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.tabs button').forEach(function(x){x.setAttribute('aria-selected','false')});
+      b.setAttribute('aria-selected','true');
+      img.style.opacity=0;
+      setTimeout(function(){img.src=b.dataset.img;img.alt=b.dataset.alt;img.style.opacity=1},150);
+    });
+  });
+  var lb=document.getElementById('lb'), lbi=lb.querySelector('img');
+  document.querySelectorAll('.zoom').forEach(function(z){
+    z.addEventListener('click',function(){var i=z.querySelector('img');lbi.src=i.src;lbi.alt=i.alt;lb.classList.add('on')});
+  });
+  lb.addEventListener('click',function(){lb.classList.remove('on')});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')lb.classList.remove('on')});
+})();
+</script>
+</body>
+</html>
