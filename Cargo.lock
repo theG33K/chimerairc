@@ -117,7 +117,7 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "chimerairc"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "chimerairc-core",
  "chimerairc-proto",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "chimerairc-core"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.22.1",
  "chimerairc-proto",
@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "chimerairc-proto"
-version = "0.1.5"
+version = "0.1.6"
 
 [[package]]
 name = "data-encoding"

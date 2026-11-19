@@ -2,7 +2,7 @@
 
 Where the project is and where it is going. These are plans and ideas, not promises, and the order can change.
 
-**Current release: 0.1.5, an early release for Windows 10 and 11 (64-bit).**
+**Current release: 0.1.6, an early release for Windows 10 and 11 (64-bit).**
 
 ## ✅ Working today
 
